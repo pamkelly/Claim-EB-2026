@@ -1,17 +1,24 @@
 import React, { useState } from "react";
-import { Shield, Key, Eye, EyeOff, Check, AlertCircle, RefreshCw } from "lucide-react";
+import { Shield, Key, Eye, EyeOff, Check, AlertCircle, RefreshCw, Building, User } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface LoginScreenProps {
-  onLoginSuccess: (name: string, cccd: string) => void;
+  onLoginSuccess: (name: string, cccd: string, isCorporate?: boolean, companyCode?: string, hrAccount?: string) => void;
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [step, setStep] = useState<"login" | "forgot_cccd" | "forgot_otp" | "forgot_setup" | "forgot_success">("login");
+  const [loginPortal, setLoginPortal] = useState<"individual" | "corporate">("individual");
   
-  // Login Form States
+  // Login Form States (Individual)
   const [cccd, setCccd] = useState("001096012345");
   const [password, setPassword] = useState("••••••••");
+  
+  // Login Form States (Corporate HR)
+  const [companyCode, setCompanyCode] = useState("PTI-EB-FPT");
+  const [hrAccount, setHrAccount] = useState("fpt_hr_admin");
+  const [corpPassword, setCorpPassword] = useState("••••••••");
+  
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,24 +36,48 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     e.preventDefault();
     setLoginError("");
 
-    if (!cccd || cccd.length < 9) {
-      setLoginError("Căn cước công dân phải từ 9 đến 12 chữ số.");
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    // Simulate brief network delay
-    setTimeout(() => {
-      setIsSubmitting(false);
-      // Hardcoded login mock
-      if (cccd === "001096012345") {
-        onLoginSuccess("Nguyễn Văn An", cccd);
-      } else {
-        // Allow any CCCD but mock a name
-        onLoginSuccess("Khách hàng PTI", cccd);
+    if (loginPortal === "individual") {
+      if (!cccd || cccd.length < 9) {
+        setLoginError("Căn cước công dân phải từ 9 đến 12 chữ số.");
+        return;
       }
-    }, 800);
+      
+      setIsSubmitting(true);
+      
+      // Simulate brief network delay
+      setTimeout(() => {
+        setIsSubmitting(false);
+        // Hardcoded login mock
+        if (cccd === "001096012345") {
+          onLoginSuccess("Nguyễn Văn An", cccd, false);
+        } else {
+          // Allow any CCCD but mock a name
+          onLoginSuccess("Khách hàng PTI", cccd, false);
+        }
+      }, 800);
+    } else {
+      // Corporate login
+      if (!companyCode.trim()) {
+        setLoginError("Vui lòng nhập mã số doanh nghiệp.");
+        return;
+      }
+      if (!hrAccount.trim()) {
+        setLoginError("Vui lòng nhập tài khoản quản trị HR.");
+        return;
+      }
+      
+      setIsSubmitting(true);
+      
+      setTimeout(() => {
+        setIsSubmitting(false);
+        // Clean mock names for the HR profile
+        if (companyCode.toUpperCase() === "PTI-EB-FPT" && hrAccount.toLowerCase() === "fpt_hr_admin") {
+          onLoginSuccess("FPT Software HR Manager", "", true, "PTI-EB-FPT", "fpt_hr_admin");
+        } else {
+          onLoginSuccess(`${companyCode.toUpperCase()} HR Specialist`, "", true, companyCode.toUpperCase(), hrAccount.toLowerCase());
+        }
+      }, 800);
+    }
   };
 
   const handleRecoverySubmitCCCD = (e: React.FormEvent) => {
@@ -148,15 +179,50 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <h1 className="text-2xl font-display font-black tracking-tight text-slate-800">
                 PTI <span className="text-blue-600">Care</span>
               </h1>
-              <p className="text-[10px] font-extrabold text-blue-500 uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] font-extrabold text-blue-500 uppercase tracking-widest mt-0.5 mb-4">
                 Bảo hiểm bưu điện
               </p>
+            </div>
+
+            {/* Premium Sliding Segment Selector for individual vs corporate login */}
+            <div className="flex bg-slate-100/80 p-1 rounded-2xl mb-3 border border-slate-200/40">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginPortal("individual");
+                  setLoginError("");
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  loginPortal === "individual"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <User size={13} />
+                <span>Cá nhân & Gia đình</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginPortal("corporate");
+                  setLoginError("");
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  loginPortal === "corporate"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Building size={13} />
+                <span>Cổng Doanh nghiệp (HR)</span>
+              </button>
             </div>
 
             {/* Glassmorphic Login Card */}
             <div className="glass-panel rounded-3xl p-5 my-1 border border-white/50 shadow-xl shadow-blue-500/5">
               <h2 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Key size={15} className="text-blue-600" /> Đăng nhập hệ thống
+                <Key size={15} className="text-blue-600" /> 
+                {loginPortal === "individual" ? "Đăng nhập hệ thống" : "Đăng nhập Cổng HR Doanh nghiệp"}
               </h2>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -167,50 +233,107 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">
-                    Số Căn cước công dân (CCCD)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={12}
-                    value={cccd}
-                    onChange={(e) => setCccd(e.target.value.replace(/\D/g, ""))}
-                    className="w-full px-4 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
-                    placeholder="Nhập 9 hoặc 12 số CCCD"
-                  />
-                </div>
+                {loginPortal === "individual" ? (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">
+                        Số Căn cước công dân (CCCD)
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={12}
+                        value={cccd}
+                        onChange={(e) => setCccd(e.target.value.replace(/\D/g, ""))}
+                        className="w-full px-4 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
+                        placeholder="Nhập 9 hoặc 12 số CCCD"
+                      />
+                    </div>
 
-                <div>
-                  <div className="flex justify-between items-center mb-1.5 ml-1">
-                    <label className="block text-xs font-semibold text-slate-500">
-                      Mật khẩu khóa
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setStep("forgot_cccd")}
-                      className="text-xs font-semibold text-blue-600 hover:underline"
-                    >
-                      Quên mật khẩu?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-4 pr-11 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
-                      placeholder="Nhập mật khẩu của bạn"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5 ml-1">
+                        <label className="block text-xs font-semibold text-slate-500">
+                          Mật khẩu khóa
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setStep("forgot_cccd")}
+                          className="text-xs font-semibold text-blue-600 hover:underline"
+                        >
+                          Quên mật khẩu?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-4 pr-11 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
+                          placeholder="Nhập mật khẩu của bạn"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">
+                        Mã số doanh nghiệp
+                      </label>
+                      <input
+                        type="text"
+                        value={companyCode}
+                        onChange={(e) => setCompanyCode(e.target.value)}
+                        className="w-full px-4 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input uppercase"
+                        placeholder="Nhập Mã doanh nghiệp (Ví dụ: PTI-EB-FPT)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">
+                        Tài khoản HR (Email/Username)
+                      </label>
+                      <input
+                        type="text"
+                        value={hrAccount}
+                        onChange={(e) => setHrAccount(e.target.value)}
+                        className="w-full px-4 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
+                        placeholder="Nhập tài khoản quản trị viên HR"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5 ml-1">
+                        <label className="block text-xs font-semibold text-slate-500">
+                          Mật khẩu quản trị HR
+                        </label>
+                        <span className="text-[10px] text-blue-500 font-semibold tracking-wider uppercase">Bảo mật mã hóa</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={corpPassword}
+                          onChange={(e) => setCorpPassword(e.target.value)}
+                          className="w-full pl-4 pr-11 py-3 rounded-2xl text-sm font-medium text-slate-800 glass-input"
+                          placeholder="Nhập mật khẩu tài khoản HR"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <button
                   type="submit"
@@ -227,9 +350,17 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
 
             {/* Quick Demo Assist Banner */}
-            <div className="text-center text-[11px] text-slate-400 px-4 mb-2">
-              <span className="font-semibold text-blue-500">Tài khoản lái mẫu:</span> CCCD{" "}
-              <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">001096012345</code> (Ấn Đăng nhập để trải nghiệm ngay)
+            <div className="text-center text-[10px] text-slate-400 px-4 mb-2 leading-relaxed">
+              {loginPortal === "individual" ? (
+                <>
+                  <span className="font-semibold text-blue-500">Tài khoản lái mẫu:</span> CCCD{" "}
+                  <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9px]">001096012345</code> (Bấm Đăng nhập ngay)
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-blue-500">Cổng HR mẫu:</span> Mã DN <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9px]">PTI-EB-FPT</code> & TK <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9px]">fpt_hr_admin</code>
+                </>
+              )}
             </div>
           </motion.div>
         )}

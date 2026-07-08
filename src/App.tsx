@@ -4,7 +4,7 @@ import {
   CreditCard, Shield, Settings, Info, Search, HelpCircle, LogOut, 
   ArrowUpRight, Check, AlertCircle, FileText, ChevronRight, X, Clock, 
   PlusCircle, RefreshCw, CheckCircle2, ChevronDown, CheckCircle,
-  ChevronLeft
+  ChevronLeft, Users
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -13,6 +13,7 @@ import LoginScreen from "./components/LoginScreen";
 import ClaimWizard from "./components/ClaimWizard";
 import ChatTab from "./components/ChatTab";
 import QuickActionsTab, { CardDetailModal } from "./components/QuickActionsTab";
+import CorporateDashboard from "./components/CorporateDashboard";
 
 import { InsuranceCard, ClaimRequest, NotificationItem, NewsItem } from "./types";
 import { 
@@ -21,7 +22,15 @@ import {
 
 export default function App() {
   // USER STATES
-  const [user, setUser] = useState<{ name: string; cccd: string } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    cccd: string;
+    isCorporate?: boolean;
+    companyCode?: string;
+    hrAccount?: string;
+  } | null>(null);
+
+  const [corporateEmployeeSelectedForWizard, setCorporateEmployeeSelectedForWizard] = useState<any | null>(null);
 
   // BASE COLLECTIONS (Persist claims in LocalStorage for dynamic state tracking)
   const [cards, setCards] = useState<InsuranceCard[]>(SAMPLE_CARDS);
@@ -30,7 +39,7 @@ export default function App() {
   const [claims, setClaims] = useState<ClaimRequest[]>([]);
 
   // NAVIGATION & PORTAL STATES
-  const [activeTab, setActiveTab] = useState<"home" | "account" | "news" | "notif" | "chat">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "roster" | "account" | "news" | "notif" | "chat">("home");
   const [currentWizard, setCurrentWizard] = useState(false);
   const [currentQuickAction, setCurrentQuickAction] = useState<"payment" | "profile" | null>(null);
 
@@ -89,8 +98,8 @@ export default function App() {
     localStorage.setItem("pti_claims_v1", JSON.stringify(updatedClaims));
   };
 
-  const handleLoginSuccess = (name: string, cccd: string) => {
-    setUser({ name, cccd });
+  const handleLoginSuccess = (name: string, cccd: string, isCorporate?: boolean, companyCode?: string, hrAccount?: string) => {
+    setUser({ name, cccd, isCorporate, companyCode, hrAccount });
   };
 
   const handleLogout = () => {
@@ -253,11 +262,21 @@ export default function App() {
               >
                 <ClaimWizard 
                   cards={cards}
-                  onBack={() => setCurrentWizard(false)}
+                  isCorporateMode={user.isCorporate}
+                  corporateEmployee={corporateEmployeeSelectedForWizard}
+                  onBack={() => {
+                    setCurrentWizard(false);
+                    setCorporateEmployeeSelectedForWizard(null);
+                  }}
                   onSubmitSuccess={(newClaim) => {
                     handleAddNewClaim(newClaim);
                     setCurrentWizard(false);
-                    setActiveTab("account"); // Go to account tab to track status
+                    setCorporateEmployeeSelectedForWizard(null);
+                    if (user.isCorporate) {
+                      setActiveTab("home");
+                    } else {
+                      setActiveTab("account");
+                    }
                   }}
                 />
               </motion.div>
@@ -295,30 +314,83 @@ export default function App() {
               
               {/* TAB 1: HOME PAGE */}
               {activeTab === "home" && (
-                <motion.div
-                  key="home-tab"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-2 pb-6 space-y-5"
-                >
-                  {/* Top Welcome Bar */}
-                  <div className="flex justify-between items-center pt-2">
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chào mừng trở lại,</p>
-                      <h2 className="text-lg font-display font-bold text-slate-800 flex items-center gap-1.5">
-                        {user.name} <Sparkles size={16} className="text-blue-500 fill-blue-500" />
-                      </h2>
+                user.isCorporate ? (
+                  <motion.div
+                    key="corporate-home-tab"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex-grow flex flex-col overflow-hidden"
+                  >
+                    {/* Top Welcome Bar for HR */}
+                    <div className="flex justify-between items-center px-5 pt-4 pb-2 shrink-0">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CỔNG DOANH NGHIỆP,</p>
+                        <h2 className="text-base font-display font-black text-slate-800 flex items-center gap-1.5 uppercase">
+                          PTI Enterprise <Sparkles size={15} className="text-blue-500 fill-blue-500 animate-pulse" />
+                        </h2>
+                      </div>
+                      
+                      <button 
+                        onClick={handleLogout}
+                        title="Đăng xuất"
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                      >
+                        <LogOut size={14} />
+                      </button>
                     </div>
-                    
-                    <button 
-                      onClick={handleLogout}
-                      title="Đăng xuất"
-                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
-                    >
-                      <LogOut size={15} />
-                    </button>
-                  </div>
+
+                    <CorporateDashboard 
+                      hrName={user.name}
+                      companyCode={user.companyCode || "PTI-EB-FPT"}
+                      hrAccount={user.hrAccount || "fpt_hr_admin"}
+                      claims={claims}
+                      hideRoster={true}
+                      onGoToRosterTab={() => setActiveTab("roster")}
+                      onStartCreateWizardDirectly={() => setCurrentWizard(true)}
+                      onCreateOnBehalf={(emp) => {
+                        setCorporateEmployeeSelectedForWizard({
+                          id: emp.id,
+                          name: emp.name,
+                          relationship: emp.relationship,
+                          cardNumber: emp.cardNumber,
+                          bankName: emp.bankName,
+                          bankAccount: emp.bankAccount,
+                          bankOwner: emp.bankOwner,
+                          email: emp.email,
+                          isDependent: emp.isDependent
+                        });
+                        setCurrentWizard(true);
+                      }}
+                      onSelectClaim={(claim) => setSelectedClaim(claim)}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="home-tab"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex-grow flex flex-col overflow-y-auto px-5 pt-2 pb-6 space-y-5"
+                  >
+                    {/* Top Welcome Bar */}
+                    <div className="flex justify-between items-center pt-2">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chào mừng trở lại,</p>
+                        <h2 className="text-lg font-display font-bold text-slate-800 flex items-center gap-1.5">
+                          {user.name} <Sparkles size={16} className="text-blue-500 fill-blue-500" />
+                        </h2>
+                      </div>
+                      
+                      <button 
+                        onClick={handleLogout}
+                        title="Đăng xuất"
+                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                      >
+                        <LogOut size={15} />
+                      </button>
+                    </div>
+
 
                   {/* Dynamic Interactive Insurance Card (e-card) */}
                   <div className="space-y-2.5">
@@ -622,6 +694,59 @@ export default function App() {
                   </div>
 
                 </motion.div>
+              )
+              )}
+
+              {/* TAB: ROSTER (CORPORATE MODE ONLY) */}
+              {activeTab === "roster" && user?.isCorporate && (
+                <motion.div
+                  key="corporate-roster-tab"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex-grow flex flex-col overflow-hidden"
+                >
+                  {/* Top Welcome Bar for HR */}
+                  <div className="flex justify-between items-center px-5 pt-4 pb-2 shrink-0">
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CỔNG DOANH NGHIỆP,</p>
+                      <h2 className="text-base font-display font-black text-slate-800 flex items-center gap-1.5 uppercase">
+                        Nhân sự & Người phụ thuộc
+                      </h2>
+                    </div>
+                    
+                    <button 
+                      onClick={handleLogout}
+                      title="Đăng xuất"
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                    >
+                      <LogOut size={14} />
+                    </button>
+                  </div>
+
+                  <CorporateDashboard 
+                    hrName={user.name}
+                    companyCode={user.companyCode || "PTI-EB-FPT"}
+                    hrAccount={user.hrAccount || "fpt_hr_admin"}
+                    claims={claims}
+                    showOnlyRoster={true}
+                    onCreateOnBehalf={(emp) => {
+                      setCorporateEmployeeSelectedForWizard({
+                        id: emp.id,
+                        name: emp.name,
+                        relationship: emp.relationship,
+                        cardNumber: emp.cardNumber,
+                        bankName: emp.bankName,
+                        bankAccount: emp.bankAccount,
+                        bankOwner: emp.bankOwner,
+                        email: emp.email,
+                        isDependent: emp.isDependent
+                      });
+                      setCurrentWizard(true);
+                    }}
+                    onSelectClaim={(claim) => setSelectedClaim(claim)}
+                  />
+                </motion.div>
               )}
 
               {/* TAB 2: ACCOUNT & CLAIMS TRACKING */}
@@ -828,8 +953,13 @@ export default function App() {
           {/* ==========================================
               BOTTOM NAVIGATION BAR (IOS GLASSMORPHIC FOOTER)
           ========================================== */}
-          <div className="h-20 bg-white/60 backdrop-blur-md border-t border-slate-100/40 px-3 py-1 flex items-center justify-around z-10">
-            {[
+          <div className="h-20 bg-white/60 backdrop-blur-md border-t border-slate-100/40 px-3 py-1 flex items-center justify-around z-10 shrink-0">
+            {(user.isCorporate ? [
+              { id: "home", label: "Cổng HR", icon: Home },
+              { id: "roster", label: "Nhân sự", icon: Users },
+              { id: "news", label: "Tin tức", icon: Newspaper },
+              { id: "chat", label: "Hỗ trợ AI", icon: MessageSquare, highlight: true }
+            ] : [
               { id: "home", label: "Trang chủ", icon: Home },
               { id: "account", label: "Tài khoản", icon: UserIcon },
               { id: "news", label: "Tin tức", icon: Newspaper },
@@ -840,7 +970,7 @@ export default function App() {
                 badge: unreadCount > 0 ? unreadCount : undefined 
               },
               { id: "chat", label: "Chat với AI", icon: MessageSquare, highlight: true }
-            ].map((tab) => {
+            ]).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               
