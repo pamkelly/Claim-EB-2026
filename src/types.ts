@@ -1,4 +1,4 @@
-export type TreatmentType = "NoiTru" | "NgoaiTru" | "NhaKhoa";
+export type TreatmentType = "NoiTru" | "NgoaiTru" | "NhaKhoa" | "PhauThuat";
 export type ClaimStatus = "ChoDuyet" | "YeuCauBoSung" | "DaDuyet" | "TuChoi" | "Nhap";
 export type ReceiveMethod = "ChuyenKhoan" | "TienMat";
 

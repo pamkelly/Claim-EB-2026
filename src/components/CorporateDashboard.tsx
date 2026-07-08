@@ -3,7 +3,7 @@ import {
   Building2, Users, Receipt, Clock, AlertTriangle, FileUp, 
   ArrowRight, Search, Check, AlertCircle, Sparkles, FileText, 
   HelpCircle, ShieldCheck, Mail, Send, CheckCircle2,
-  Calendar, BarChart3, PlusCircle, X, ChevronRight, Download
+  Calendar, BarChart3, PlusCircle, X, ChevronRight, Download, Filter
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ClaimRequest } from "../types";
@@ -22,6 +22,12 @@ export interface EmployeeInsured {
   bankAccount: string;
   bankOwner: string;
   employeeCode: string; // Mã nhân viên để tìm kiếm
+  remainingNoiTruLimit?: number;
+  totalNoiTruLimit?: number;
+  remainingNgoaiTruLimit?: number;
+  totalNgoaiTruLimit?: number;
+  remainingPhauThuatLimit?: number;
+  totalPhauThuatLimit?: number;
 }
 
 const SAMPLE_ROSTER: EmployeeInsured[] = [
@@ -36,7 +42,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Vietcombank (VCB)",
     bankAccount: "101299933344",
     bankOwner: "LE VAN CONG",
-    employeeCode: "FPT-00812"
+    employeeCode: "FPT-00812",
+    remainingNoiTruLimit: 42500000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 3200000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
   },
   {
     id: "emp-2",
@@ -50,7 +62,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Vietcombank (VCB)",
     bankAccount: "101299933344",
     bankOwner: "LE VAN CONG",
-    employeeCode: "FPT-00812"
+    employeeCode: "FPT-00812",
+    remainingNoiTruLimit: 15600000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 800000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
   },
   {
     id: "emp-3",
@@ -63,7 +81,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Techcombank (TCB)",
     bankAccount: "1903444222115",
     bankOwner: "TRAN THI LAN",
-    employeeCode: "FPT-00945"
+    employeeCode: "FPT-00945",
+    remainingNoiTruLimit: 60000000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 12000000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
   },
   {
     id: "emp-4",
@@ -77,7 +101,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Techcombank (TCB)",
     bankAccount: "1903444222115",
     bankOwner: "TRAN THI LAN",
-    employeeCode: "FPT-00945"
+    employeeCode: "FPT-00945",
+    remainingNoiTruLimit: 38000000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 4500000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
   },
   {
     id: "emp-6",
@@ -90,7 +120,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Vietcombank",
     bankAccount: "88770001222",
     bankOwner: "NGUYEN VAN AN",
-    employeeCode: "FPT-08877"
+    employeeCode: "FPT-08877",
+    remainingNoiTruLimit: 21000000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 1800000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
   },
   {
     id: "emp-7",
@@ -104,7 +140,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "Vietcombank",
     bankAccount: "88770001222",
     bankOwner: "NGUYEN VAN AN (giám hộ)",
-    employeeCode: "FPT-08877"
+    employeeCode: "FPT-08877",
+    remainingNoiTruLimit: 40000000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 9000000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
   },
   {
     id: "emp-5",
@@ -117,7 +159,13 @@ const SAMPLE_ROSTER: EmployeeInsured[] = [
     bankName: "BIDV",
     bankAccount: "5801000999888",
     bankOwner: "PHAM HONG MINH",
-    employeeCode: "FPT-01055"
+    employeeCode: "FPT-01055",
+    remainingNoiTruLimit: 0,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 0,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 0,
+    totalPhauThuatLimit: 80000000
   }
 ];
 
@@ -150,6 +198,8 @@ export default function CorporateDashboard({
   const [rosterTab, setRosterTab] = useState<"all" | "primary" | "dependent">("all");
   const [claimStatusTab, setClaimStatusTab] = useState<"all" | "ChoDuyet" | "YeuCauBoSung" | "DaDuyet">("all");
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportDepartment, setReportDepartment] = useState<"all" | "it" | "hr" | "sales">("all");
+  const [reportDateRange, setReportDateRange] = useState<"month" | "quarter" | "year">("month");
   const [showSignedNotice, setShowSignedNotice] = useState<string | null>(null);
 
   // Filter roster
@@ -307,6 +357,69 @@ export default function CorporateDashboard({
                   <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] text-slate-400 font-semibold">
                     <div>Ngân hàng thụ hưởng: <span className="text-slate-600 font-bold">{emp.bankName}</span></div>
                     <div>Chủ TK nhận tiền: <span className="text-slate-600 font-bold">{emp.bankOwner}</span></div>
+                  </div>
+
+                  {/* Hạn mức quyền lợi còn lại */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Hạn mức quyền lợi còn lại (PTI Care):</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Nội trú */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Nội trú</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingNoiTruLimit !== undefined ? (emp.remainingNoiTruLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full" 
+                            style={{ width: `${emp.remainingNoiTruLimit && emp.totalNoiTruLimit ? (emp.remainingNoiTruLimit / emp.totalNoiTruLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalNoiTruLimit !== undefined ? (emp.totalNoiTruLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+
+                      {/* Ngoại trú */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Ngoại trú</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingNgoaiTruLimit !== undefined ? (emp.remainingNgoaiTruLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 rounded-full" 
+                            style={{ width: `${emp.remainingNgoaiTruLimit && emp.totalNgoaiTruLimit ? (emp.remainingNgoaiTruLimit / emp.totalNgoaiTruLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalNgoaiTruLimit !== undefined ? (emp.totalNgoaiTruLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+
+                      {/* Phẫu thuật */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Phẫu thuật</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingPhauThuatLimit !== undefined ? (emp.remainingPhauThuatLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-indigo-500 rounded-full" 
+                            style={{ width: `${emp.remainingPhauThuatLimit && emp.totalPhauThuatLimit ? (emp.remainingPhauThuatLimit / emp.totalPhauThuatLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalPhauThuatLimit !== undefined ? (emp.totalPhauThuatLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {emp.isDependent && (
@@ -598,6 +711,69 @@ export default function CorporateDashboard({
                     <div>Chủ TK nhận tiền: <span className="text-slate-600 font-bold">{emp.bankOwner}</span></div>
                   </div>
 
+                  {/* Hạn mức quyền lợi còn lại */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Hạn mức quyền lợi còn lại (PTI Care):</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Nội trú */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Nội trú</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingNoiTruLimit !== undefined ? (emp.remainingNoiTruLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full" 
+                            style={{ width: `${emp.remainingNoiTruLimit && emp.totalNoiTruLimit ? (emp.remainingNoiTruLimit / emp.totalNoiTruLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalNoiTruLimit !== undefined ? (emp.totalNoiTruLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+
+                      {/* Ngoại trú */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Ngoại trú</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingNgoaiTruLimit !== undefined ? (emp.remainingNgoaiTruLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 rounded-full" 
+                            style={{ width: `${emp.remainingNgoaiTruLimit && emp.totalNgoaiTruLimit ? (emp.remainingNgoaiTruLimit / emp.totalNgoaiTruLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalNgoaiTruLimit !== undefined ? (emp.totalNgoaiTruLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+
+                      {/* Phẫu thuật */}
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100/50 space-y-1">
+                        <div className="flex justify-between text-[8px] font-bold text-slate-500">
+                          <span>Phẫu thuật</span>
+                          <span className="font-mono text-slate-800">
+                            {emp.remainingPhauThuatLimit !== undefined ? (emp.remainingPhauThuatLimit / 1000000).toFixed(1) : "-"}M
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-indigo-500 rounded-full" 
+                            style={{ width: `${emp.remainingPhauThuatLimit && emp.totalPhauThuatLimit ? (emp.remainingPhauThuatLimit / emp.totalPhauThuatLimit) * 100 : 0}%` }} 
+                          />
+                        </div>
+                        <p className="text-[7px] text-slate-400 font-bold text-right font-mono">
+                          / {emp.totalPhauThuatLimit !== undefined ? (emp.totalPhauThuatLimit / 1000000).toFixed(0) : "-"}M đ
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {emp.isDependent && (
                     <div className="mt-2 bg-amber-50/60 p-2 rounded-lg text-[9px] text-amber-800 font-bold border border-amber-100 flex items-center gap-1.5">
                       <FileUp size={11} className="shrink-0 text-amber-600" />
@@ -772,98 +948,193 @@ export default function CorporateDashboard({
               </div>
 
               {/* Content */}
-              <div className="p-5 space-y-4">
-                {/* Visual stats summary */}
-                <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white p-4.5 rounded-2xl relative overflow-hidden shadow-inner border border-slate-800">
-                  <div className="relative z-10 space-y-2">
-                    <span className="text-[8px] font-bold tracking-wider uppercase bg-emerald-500 text-white px-2 py-0.5 rounded-full">Thống kê tổng quan</span>
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <div>
-                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Tổng bồi thường tháng này</p>
-                        <p className="text-lg font-display font-black text-emerald-400">42,400,000 đ</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Tỷ lệ duyệt hồ sơ</p>
-                        <p className="text-lg font-display font-black text-blue-400">96.8%</p>
+              {(() => {
+                // Dynamic calculations based on department and dateRange
+                let baseAmount = 42400000;
+                let approvalRate = "96.8%";
+                let ngoaiTruPercent = 68;
+                let noiTruPercent = 24;
+                let taiNanPercent = 8;
+                let labelPeriod = "Tháng 07/2026";
+                let labelDept = "Toàn bộ Công ty";
+
+                // Period multiplier
+                let mult = 1.0;
+                if (reportDateRange === "quarter") {
+                  mult = 3.03;
+                  labelPeriod = "Quý 3/2026 (Lũy kế)";
+                } else if (reportDateRange === "year") {
+                  mult = 12.08;
+                  labelPeriod = "Cả năm 2026 (Lũy kế)";
+                }
+
+                // Department filter offsets
+                if (reportDepartment === "it") {
+                  baseAmount = Math.round(baseAmount * 0.68 * mult);
+                  approvalRate = "97.2%";
+                  ngoaiTruPercent = 75;
+                  noiTruPercent = 18;
+                  taiNanPercent = 7;
+                  labelDept = "Phòng Công nghệ (IT/R&D)";
+                } else if (reportDepartment === "hr") {
+                  baseAmount = Math.round(baseAmount * 0.08 * mult);
+                  approvalRate = "100%";
+                  ngoaiTruPercent = 55;
+                  noiTruPercent = 40;
+                  taiNanPercent = 5;
+                  labelDept = "Phòng Hành chính - Nhân sự";
+                } else if (reportDepartment === "sales") {
+                  baseAmount = Math.round(baseAmount * 0.24 * mult);
+                  approvalRate = "94.5%";
+                  ngoaiTruPercent = 62;
+                  noiTruPercent = 30;
+                  taiNanPercent = 8;
+                  labelDept = "Phòng Kinh doanh / Marketing";
+                } else {
+                  baseAmount = Math.round(baseAmount * mult);
+                  labelDept = "Toàn bộ Công ty";
+                }
+
+                const ngoaiTruVal = Math.round(baseAmount * (ngoaiTruPercent / 100));
+                const noiTruVal = Math.round(baseAmount * (noiTruPercent / 100));
+                const taiNanVal = Math.round(baseAmount * (taiNanPercent / 100));
+
+                return (
+                  <div className="p-5 space-y-4">
+                    {/* Bộ lọc báo cáo EB linh hoạt */}
+                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-2.5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <Filter size={11} className="text-blue-500" /> Bộ lọc báo cáo linh hoạt
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Khoảng thời gian */}
+                        <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide">Khoảng thời gian</label>
+                          <select 
+                            value={reportDateRange} 
+                            onChange={(e: any) => setReportDateRange(e.target.value)}
+                            className="w-full text-[10px] font-bold bg-white text-slate-700 p-2 border border-slate-200 rounded-xl focus:border-blue-500 outline-none"
+                          >
+                            <option value="month">Tháng này (T7/2026)</option>
+                            <option value="quarter">Quý này (Q3/2026)</option>
+                            <option value="year">Toàn bộ năm 2026</option>
+                          </select>
+                        </div>
+
+                        {/* Phòng ban / Bộ phận */}
+                        <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide">Phòng ban</label>
+                          <select 
+                            value={reportDepartment} 
+                            onChange={(e: any) => setReportDepartment(e.target.value)}
+                            className="w-full text-[10px] font-bold bg-white text-slate-700 p-2 border border-slate-200 rounded-xl focus:border-blue-500 outline-none"
+                          >
+                            <option value="all">Tất cả phòng ban</option>
+                            <option value="it">Phòng Công nghệ (IT/R&D)</option>
+                            <option value="hr">Phòng Hành chính - Nhân sự</option>
+                            <option value="sales">Phòng Kinh doanh / Marketing</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Visual stats summary */}
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white p-4.5 rounded-2xl relative overflow-hidden shadow-inner border border-slate-800">
+                      <div className="relative z-10 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[8px] font-bold tracking-wider uppercase bg-emerald-500 text-white px-2 py-0.5 rounded-full">Thống kê tổng quan</span>
+                          <span className="text-[8px] text-slate-400 font-mono font-bold">{labelDept} • {labelPeriod}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <div>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Tổng bồi thường đã duyệt</p>
+                            <p className="text-lg font-display font-black text-emerald-400">{baseAmount.toLocaleString("vi-VN")} đ</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Tỷ lệ duyệt hồ sơ</p>
+                            <p className="text-lg font-display font-black text-blue-400">{approvalRate}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute right-0 bottom-0 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mb-6" />
+                    </div>
+
+                    {/* mini charts / bars representation */}
+                    <div className="space-y-3.5 pt-1">
+                      <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Tỷ lệ sử dụng theo loại hình điều trị</h4>
+                      
+                      <div className="space-y-2.5">
+                        {/* Ngoại trú */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="text-slate-600">Ngoại trú (Khám bệnh, thuốc)</span>
+                            <span className="text-slate-800 font-mono">{ngoaiTruPercent}% ({(ngoaiTruVal / 1000000).toFixed(1)} tr đ)</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${ngoaiTruPercent}%` }} />
+                          </div>
+                        </div>
+
+                        {/* Nội trú */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="text-slate-600">Nội trú & Phẫu thuật</span>
+                            <span className="text-slate-800 font-mono">{noiTruPercent}% ({(noiTruVal / 1000000).toFixed(1)} tr đ)</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${noiTruPercent}%` }} />
+                          </div>
+                        </div>
+
+                        {/* Tai nạn */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="text-slate-600">Tai nạn & khác</span>
+                            <span className="text-slate-800 font-mono">{taiNanPercent}% ({(taiNanVal / 1000000).toFixed(1)} tr đ)</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500 rounded-full transition-all duration-300" style={{ width: `${taiNanPercent}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional list of top medical institutions */}
+                    <div className="space-y-3 pt-2">
+                      <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Top bệnh viện được lựa chọn nhiều nhất</h4>
+                      <div className="space-y-2 text-[10px]">
+                        <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
+                          <span className="font-bold text-slate-700">1. Bệnh viện Đa khoa Quốc tế Thu Cúc</span>
+                          <span className="font-mono font-bold text-slate-500">{Math.round(14 * mult)} ca bồi thường</span>
+                        </div>
+                        <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
+                          <span className="font-bold text-slate-700">2. Bệnh viện Hồng Ngọc</span>
+                          <span className="font-mono font-bold text-slate-500">{Math.round(11 * mult)} ca bồi thường</span>
+                        </div>
+                        <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
+                          <span className="font-bold text-slate-700">3. Bệnh viện Việt Pháp Hà Nội</span>
+                          <span className="font-mono font-bold text-slate-500">{Math.round(5 * mult)} ca bồi thường</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer disclaimer inside modal */}
+                    <div className="bg-blue-50/60 border border-blue-100 p-3 rounded-2xl text-[9px] text-blue-800 leading-relaxed font-semibold">
+                      Mọi số liệu báo cáo được cập nhật thời gian thực dựa trên bộ lọc đã chọn và luồng liên kết API trực tiếp với phòng bồi thường PTI.
+                    </div>
+
+                    {/* Export button */}
+                    <button
+                      onClick={() => alert(`Báo cáo Excel cho bộ phận ${labelDept} (${labelPeriod}) đã được tổng hợp & gửi về email HR admin: hoang.pt@fsoft.com.vn`)}
+                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
+                    >
+                      <Download size={14} />
+                      <span>Xuất báo cáo chi tiết (.XLSX)</span>
+                    </button>
                   </div>
-                  <div className="absolute right-0 bottom-0 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mb-6" />
-                </div>
-
-                {/* mini charts / bars representation */}
-                <div className="space-y-3.5 pt-1">
-                  <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Tỷ lệ sử dụng theo loại hình điều trị</h4>
-                  
-                  <div className="space-y-2.5">
-                    {/* Ngoại trú */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-bold">
-                        <span className="text-slate-600">Ngoại trú (Khám bệnh, thuốc)</span>
-                        <span className="text-slate-800 font-mono">68% (28.8 tr đ)</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: "68%" }} />
-                      </div>
-                    </div>
-
-                    {/* Nội trú */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-bold">
-                        <span className="text-slate-600">Nội trú (Nằm viện, phẫu thuật)</span>
-                        <span className="text-slate-800 font-mono">24% (10.2 tr đ)</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: "24%" }} />
-                      </div>
-                    </div>
-
-                    {/* Tai nạn */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-bold">
-                        <span className="text-slate-600">Tai nạn & khác</span>
-                        <span className="text-slate-800 font-mono">8% (3.4 tr đ)</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-500 rounded-full" style={{ width: "8%" }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional list of top medical institutions */}
-                <div className="space-y-3 pt-2">
-                  <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Top bệnh viện được lựa chọn nhiều nhất</h4>
-                  <div className="space-y-2 text-[10px]">
-                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
-                      <span className="font-bold text-slate-700">1. Bệnh viện Đa khoa Quốc tế Thu Cúc</span>
-                      <span className="font-mono font-bold text-slate-500">14 ca bồi thường</span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
-                      <span className="font-bold text-slate-700">2. Bệnh viện Hồng Ngọc</span>
-                      <span className="font-mono font-bold text-slate-500">11 ca bồi thường</span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100">
-                      <span className="font-bold text-slate-700">3. Bệnh viện Việt Pháp Hà Nội</span>
-                      <span className="font-mono font-bold text-slate-500">5 ca bồi thường</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer disclaimer inside modal */}
-                <div className="bg-blue-50/60 border border-blue-100 p-3 rounded-2xl text-[9px] text-blue-800 leading-relaxed font-semibold">
-                  Mọi số liệu báo cáo được cập nhật thời gian thực dựa trên luồng liên kết API trực tiếp với phòng bồi thường PTI. HR có thể xuất báo cáo định dạng Excel hàng quý bằng nút bấm bên dưới.
-                </div>
-
-                {/* Export button */}
-                <button
-                  onClick={() => alert("Báo cáo Excel (định dạng .xlsx) đã được tổng hợp & gửi về email HR admin: hoang.pt@fsoft.com.vn")}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
-                >
-                  <Download size={14} />
-                  <span>Xuất báo cáo chi tiết (.XLSX)</span>
-                </button>
-              </div>
+                );
+              })()}
             </motion.div>
           </div>
         )}

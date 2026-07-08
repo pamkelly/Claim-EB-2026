@@ -2,20 +2,150 @@ import React, { useState } from "react";
 import { 
   Search, Shield, Check, FileText, ArrowRight, ArrowLeft, Upload, 
   Camera, FileDown, CreditCard, Banknote, Mail, AlertCircle, Info,
-  Fingerprint, Smartphone, Lock, CheckCircle2, Trash2, ChevronDown, FileUp
+  Fingerprint, Smartphone, Lock, CheckCircle2, Trash2, ChevronDown, FileUp,
+  Sparkles, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { InsuranceCard, ClaimRequest, TreatmentType, ReceiveMethod } from "../types";
 
 // Re-define SAMPLE_ROSTER inside wizard to allow searching & picking of corporate employees
 const WIZARD_ROSTER = [
-  { id: "1", name: "Nguyễn Văn An", relationship: "Bản thân (Chính)", cardNumber: "FPT-08877", bankName: "Vietcombank (VCB)", bankAccount: "101889922233", bankOwner: "NGUYEN VAN AN", email: "hoang.pt@fsoft.com.vn", employeeCode: "FPT-08877", isDependent: false },
-  { id: "2", name: "Nguyễn Minh Khang", relationship: "Con (Phụ thuộc)", cardNumber: "FPT-08877-01", bankName: "Vietcombank (VCB)", bankAccount: "101889922233", bankOwner: "NGUYEN VAN AN", email: "hoang.pt@fsoft.com.vn", employeeCode: "FPT-08877", isDependent: true, dependentOf: "Nguyễn Văn An" },
-  { id: "3", name: "Lê Văn Công", relationship: "Bản thân (Chính)", cardNumber: "FPT-00812", bankName: "Techcombank (TCB)", bankAccount: "190333444555", bankOwner: "LE VAN CONG", email: "cong.lv@fsoft.com.vn", employeeCode: "FPT-00812", isDependent: false },
-  { id: "4", name: "Lê Minh Khôi", relationship: "Con (Phụ thuộc)", cardNumber: "FPT-00812-01", bankName: "Techcombank (TCB)", bankAccount: "190333444555", bankOwner: "LE VAN CONG", email: "cong.lv@fsoft.com.vn", employeeCode: "FPT-00812", isDependent: true, dependentOf: "Lê Văn Công" },
-  { id: "5", name: "Trần Thị Hồng", relationship: "Vợ (Phụ thuộc)", cardNumber: "FPT-00812-02", bankName: "Techcombank (TCB)", bankAccount: "190333444555", bankOwner: "LE VAN CONG", email: "cong.lv@fsoft.com.vn", employeeCode: "FPT-00812", isDependent: true, dependentOf: "Lê Văn Công" },
-  { id: "6", name: "Phạm Hồng Minh", relationship: "Bản thân (Chính)", cardNumber: "FPT-01122", bankName: "VietinBank", bankAccount: "101000888999", bankOwner: "PHAM HONG MINH", email: "minh.ph@fsoft.com.vn", employeeCode: "FPT-01122", isDependent: false },
-  { id: "7", name: "Hoàng Thu Thảo", relationship: "Bản thân (Chính)", cardNumber: "FPT-09900", bankName: "MB Bank", bankAccount: "0990011223344", bankOwner: "HOANG THU THAO", email: "thao.ht@fsoft.com.vn", employeeCode: "FPT-09900", isDependent: false, status: "HetHan" }
+  {
+    id: "emp-1",
+    name: "Lê Văn Công",
+    relationship: "Nhân viên chính",
+    cardNumber: "PTI-FPT-00812",
+    status: "ConHieuLuc",
+    isDependent: false,
+    email: "levancong@fpt.com.vn",
+    bankName: "Vietcombank (VCB)",
+    bankAccount: "101299933344",
+    bankOwner: "LE VAN CONG",
+    employeeCode: "FPT-00812",
+    remainingNoiTruLimit: 42500000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 3200000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
+  },
+  {
+    id: "emp-2",
+    name: "Lê Minh Khôi",
+    relationship: "Con ruột",
+    cardNumber: "PTI-FPT-00812-D1",
+    status: "ConHieuLuc",
+    isDependent: true,
+    dependentOf: "Lê Văn Công",
+    email: "levancong@fpt.com.vn",
+    bankName: "Vietcombank (VCB)",
+    bankAccount: "101299933344",
+    bankOwner: "LE VAN CONG",
+    employeeCode: "FPT-00812",
+    remainingNoiTruLimit: 15600000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 800000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
+  },
+  {
+    id: "emp-3",
+    name: "Trần Thị Lan",
+    relationship: "Nhân viên chính",
+    cardNumber: "PTI-FPT-00945",
+    status: "ConHieuLuc",
+    isDependent: false,
+    email: "tranthilan@fpt.com.vn",
+    bankName: "Techcombank (TCB)",
+    bankAccount: "1903444222115",
+    bankOwner: "TRAN THI LAN",
+    employeeCode: "FPT-00945",
+    remainingNoiTruLimit: 60000000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 12000000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
+  },
+  {
+    id: "emp-4",
+    name: "Nguyễn Văn Bình",
+    relationship: "Chồng / Phối ngẫu",
+    cardNumber: "PTI-FPT-00945-D1",
+    status: "ConHieuLuc",
+    isDependent: true,
+    dependentOf: "Trần Thị Lan",
+    email: "tranthilan@fpt.com.vn",
+    bankName: "Techcombank (TCB)",
+    bankAccount: "1903444222115",
+    bankOwner: "TRAN THI LAN",
+    employeeCode: "FPT-00945",
+    remainingNoiTruLimit: 38000000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 4500000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
+  },
+  {
+    id: "emp-6",
+    name: "Nguyễn Văn An",
+    relationship: "Nhân viên chính",
+    cardNumber: "PTI-FPT-08877",
+    status: "ConHieuLuc",
+    isDependent: false,
+    email: "nguyenvanan@fpt.com.vn",
+    bankName: "Vietcombank",
+    bankAccount: "88770001222",
+    bankOwner: "NGUYEN VAN AN",
+    employeeCode: "FPT-08877",
+    remainingNoiTruLimit: 21000000,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 1800000,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 80000000,
+    totalPhauThuatLimit: 80000000
+  },
+  {
+    id: "emp-7",
+    name: "Nguyễn Minh Khang",
+    relationship: "Con ruột",
+    cardNumber: "PTI-FPT-08877-D1",
+    status: "ConHieuLuc",
+    isDependent: true,
+    dependentOf: "Nguyễn Văn An",
+    email: "nguyenvanan@fpt.com.vn",
+    bankName: "Vietcombank",
+    bankAccount: "88770001222",
+    bankOwner: "NGUYEN VAN AN (giám hộ)",
+    employeeCode: "FPT-08877",
+    remainingNoiTruLimit: 40000000,
+    totalNoiTruLimit: 40000000,
+    remainingNgoaiTruLimit: 9000000,
+    totalNgoaiTruLimit: 10000000,
+    remainingPhauThuatLimit: 50000000,
+    totalPhauThuatLimit: 50000000
+  },
+  {
+    id: "emp-5",
+    name: "Phạm Hồng Minh",
+    relationship: "Nhân viên chính",
+    cardNumber: "PTI-FPT-01055",
+    status: "HetHan",
+    isDependent: false,
+    email: "phamhongminh@fpt.com.vn",
+    bankName: "BIDV",
+    bankAccount: "5801000999888",
+    bankOwner: "PHAM HONG MINH",
+    employeeCode: "FPT-01055",
+    remainingNoiTruLimit: 0,
+    totalNoiTruLimit: 60000000,
+    remainingNgoaiTruLimit: 0,
+    totalNgoaiTruLimit: 15000000,
+    remainingPhauThuatLimit: 0,
+    totalPhauThuatLimit: 80000000
+  }
 ];
 
 interface ClaimWizardProps {
@@ -50,7 +180,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [searchName, setSearchName] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string>(() => {
     if (isCorporateMode) {
-      return corporateEmployee ? corporateEmployee.id : "1"; // Nguyễn Văn An default or corporateEmployee id
+      return corporateEmployee ? corporateEmployee.id : "emp-6"; // Nguyễn Văn An default (emp-6)
     }
     return cards.length > 0 ? cards[0].id : "";
   });
@@ -84,6 +214,11 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [hasOtherInsurance, setHasOtherInsurance] = useState<boolean>(false);
   const [eventError, setEventError] = useState("");
 
+  // OCR Scan Simulation States
+  const [isScanningOcr, setIsScanningOcr] = useState(false);
+  const [ocrSuccess, setOcrSuccess] = useState(false);
+  const [ocrLog, setOcrLog] = useState("");
+
   // STEP 3: Compensation Info
   const [receiveMethod, setReceiveMethod] = useState<ReceiveMethod>("ChuyenKhoan");
   const [bankName, setBankName] = useState("");
@@ -111,6 +246,27 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
       }
     }
   }, [selectedCardId, isCorporateMode, currentEmployee, cards]);
+
+  const handleOcrScan = (amountVal: number, invoiceName: string) => {
+    setIsScanningOcr(true);
+    setOcrSuccess(false);
+    setOcrLog("PTI OCR: Đang kết nối tệp tin & tải chứng từ y tế...");
+    
+    setTimeout(() => {
+      setOcrLog("PTI Care Smart OCR: Đang phân tích bố cục hình ảnh...");
+    }, 1000);
+
+    setTimeout(() => {
+      setOcrLog(`Phát hiện: ${invoiceName}. Đang tổng hợp hóa đơn & chi tiết thanh toán...`);
+    }, 2200);
+
+    setTimeout(() => {
+      setIsScanningOcr(false);
+      setOcrSuccess(true);
+      setOcrLog(`Trích xuất thành công: ${amountVal.toLocaleString("vi-VN")} VNĐ từ ${invoiceName}`);
+      setAmountStr(amountVal.toLocaleString("vi-VN"));
+    }, 3500);
+  };
 
   // STEP 4: Document Attachments & Terms
   const [medicalDocs, setMedicalDocs] = useState<{ name: string; size: string; type: string }[]>([]);
@@ -618,6 +774,72 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   <span className="font-mono font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{selectedCard?.name} ({selectedCard?.cardNumber})</span>
                 </div>
 
+                {/* Real-time remaining limits */}
+                {(() => {
+                  const emp = WIZARD_ROSTER.find(e => e.id === selectedCardId || e.cardNumber === selectedCard?.cardNumber);
+                  if (!emp) return null;
+                  return (
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-3 border border-slate-150/40 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Hạn mức bảo lãnh khả dụng (PTI Care)</span>
+                        <span className="text-[8px] font-black text-slate-400">Đồng bộ Live</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {/* Nội trú */}
+                        <div className="bg-white rounded-xl p-2 border border-slate-100/60 space-y-1">
+                          <p className="text-[8px] font-bold text-slate-500">Nội trú</p>
+                          <p className="text-[10px] font-black text-blue-600 font-mono">
+                            {emp.remainingNoiTruLimit !== undefined ? (emp.remainingNoiTruLimit).toLocaleString("vi-VN") : "-"} đ
+                          </p>
+                          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 rounded-full" 
+                              style={{ width: `${emp.remainingNoiTruLimit && emp.totalNoiTruLimit ? (emp.remainingNoiTruLimit / emp.totalNoiTruLimit) * 100 : 0}%` }} 
+                            />
+                          </div>
+                          <p className="text-[7px] text-slate-400 font-semibold font-mono text-right">
+                            Hạn mức: {(emp.totalNoiTruLimit || 0).toLocaleString("vi-VN")} đ
+                          </p>
+                        </div>
+
+                        {/* Ngoại trú */}
+                        <div className="bg-white rounded-xl p-2 border border-slate-100/60 space-y-1">
+                          <p className="text-[8px] font-bold text-slate-500">Ngoại trú</p>
+                          <p className="text-[10px] font-black text-emerald-600 font-mono">
+                            {emp.remainingNgoaiTruLimit !== undefined ? (emp.remainingNgoaiTruLimit).toLocaleString("vi-VN") : "-"} đ
+                          </p>
+                          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-emerald-500 rounded-full" 
+                              style={{ width: `${emp.remainingNgoaiTruLimit && emp.totalNgoaiTruLimit ? (emp.remainingNgoaiTruLimit / emp.totalNgoaiTruLimit) * 100 : 0}%` }} 
+                            />
+                          </div>
+                          <p className="text-[7px] text-slate-400 font-semibold font-mono text-right">
+                            Hạn mức: {(emp.totalNgoaiTruLimit || 0).toLocaleString("vi-VN")} đ
+                          </p>
+                        </div>
+
+                        {/* Phẫu thuật */}
+                        <div className="bg-white rounded-xl p-2 border border-slate-100/60 space-y-1">
+                          <p className="text-[8px] font-bold text-slate-500">Phẫu thuật</p>
+                          <p className="text-[10px] font-black text-indigo-600 font-mono">
+                            {emp.remainingPhauThuatLimit !== undefined ? (emp.remainingPhauThuatLimit).toLocaleString("vi-VN") : "-"} đ
+                          </p>
+                          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-indigo-500 rounded-full" 
+                              style={{ width: `${emp.remainingPhauThuatLimit && emp.totalPhauThuatLimit ? (emp.remainingPhauThuatLimit / emp.totalPhauThuatLimit) * 100 : 0}%` }} 
+                            />
+                          </div>
+                          <p className="text-[7px] text-slate-400 font-semibold font-mono text-right">
+                            Hạn mức: {(emp.totalPhauThuatLimit || 0).toLocaleString("vi-VN")} đ
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {eventError && (
                   <div className="flex gap-2 items-start text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-100">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -709,26 +931,27 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1">
                     Hình thức điều trị *
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: "NgoaiTru", label: "Ngoại trú", description: "Khám đi về trong ngày" },
-                      { id: "NoiTru", label: "Nội trú", description: "Điều trị nội trú qua đêm" }
+                      { id: "NgoaiTru", label: "Ngoại trú", description: "Điều trị trong ngày" },
+                      { id: "NoiTru", label: "Nội trú", description: "Nằm viện qua đêm" },
+                      { id: "PhauThuat", label: "Phẫu thuật", description: "Phẫu thuật y khoa" }
                     ].map((type) => {
                       const isSelected = treatmentType === type.id;
                       return (
                         <label
                           key={type.id}
-                          className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                          className={`flex flex-col justify-between p-2.5 rounded-2xl border transition-all cursor-pointer text-center ${
                             isSelected
-                              ? "border-blue-500 bg-blue-50/20 text-blue-600 shadow-sm shadow-blue-500/5"
+                              ? "border-blue-500 bg-blue-50/25 text-blue-600 shadow-sm shadow-blue-500/5"
                               : "border-slate-100 bg-white/40 text-slate-500 hover:bg-white"
                           }`}
                         >
-                          <div className="text-left space-y-0.5 select-none">
-                            <p className="text-xs font-bold">{type.label}</p>
-                            <p className="text-[9px] opacity-75 font-medium leading-tight">{type.description}</p>
+                          <div className="space-y-0.5 select-none">
+                            <p className="text-[11px] font-black">{type.label}</p>
+                            <p className="text-[8px] opacity-75 font-semibold leading-tight">{type.description}</p>
                           </div>
-                          <div className="relative flex items-center justify-center shrink-0 ml-2">
+                          <div className="relative flex items-center justify-center shrink-0 mt-2.5">
                             <input
                               type="radio"
                               name="treatmentTypeRadio"
@@ -736,7 +959,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                               onChange={() => setTreatmentType(type.id as TreatmentType)}
                               className="sr-only"
                             />
-                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                            <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
                               isSelected ? "border-blue-500 bg-blue-500" : "border-slate-300 bg-white"
                             }`}>
                               {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -776,6 +999,55 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                       );
                     })}
                   </div>
+                </div>
+
+                {/* AI OCR Scanner Integration */}
+                <div className="bg-blue-50/40 rounded-2.5xl p-4 border border-blue-100/70 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+                        <Sparkles size={12} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-800">Trích xuất nhanh bằng OCR AI</h4>
+                        <p className="text-[9px] text-slate-400 font-bold">Quét hóa đơn / phiếu thu để tự động tính tiền bồi thường</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { name: "Hóa đơn Hoàn Mỹ", amount: 3450000, desc: "3,450,000 đ" },
+                      { name: "Thuốc Hồng Ngọc", amount: 1280000, desc: "1,280,000 đ" },
+                      { name: "Sao kê Bạch Mai", amount: 7850000, desc: "7,850,000 đ" }
+                    ].map((invoice, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        disabled={isScanningOcr}
+                        onClick={() => handleOcrScan(invoice.amount, invoice.name)}
+                        className="p-2 rounded-xl bg-white border border-slate-150 hover:border-blue-300 text-slate-600 hover:text-blue-600 transition-all text-center cursor-pointer disabled:opacity-50 space-y-1 shadow-sm"
+                      >
+                        <FileText size={14} className="mx-auto text-slate-400" />
+                        <p className="text-[8px] font-black tracking-tight truncate leading-tight">{invoice.name}</p>
+                        <p className="text-[9px] font-black text-blue-600 font-mono leading-none">{invoice.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {isScanningOcr && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex items-center gap-2.5">
+                      <RefreshCw size={14} className="text-blue-500 animate-spin shrink-0" />
+                      <span className="text-[9px] font-bold text-slate-600 animate-pulse">{ocrLog}</span>
+                    </div>
+                  )}
+
+                  {!isScanningOcr && ocrSuccess && (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 flex items-center gap-2 text-emerald-800">
+                      <Check size={14} className="text-emerald-500 shrink-0 font-bold" />
+                      <span className="text-[9px] font-bold">{ocrLog}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Total Claim Amount */}
