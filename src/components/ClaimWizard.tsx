@@ -3,7 +3,7 @@ import {
   Search, Shield, Check, FileText, ArrowRight, ArrowLeft, Upload, 
   Camera, FileDown, CreditCard, Banknote, Mail, AlertCircle, Info,
   Fingerprint, Smartphone, Lock, CheckCircle2, Trash2, ChevronDown, FileUp,
-  Sparkles, RefreshCw
+  Sparkles, RefreshCw, Calendar, X, Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { InsuranceCard, ClaimRequest, TreatmentType, ReceiveMethod } from "../types";
@@ -201,7 +201,8 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
         bankName: currentEmployee.bankName,
         bankAccount: currentEmployee.bankAccount,
         bankOwner: currentEmployee.bankOwner,
-        email: currentEmployee.email
+        email: currentEmployee.email,
+        expiryDate: "31/12/2026"
       }
     : cards.find(c => c.id === selectedCardId);
 
@@ -210,9 +211,25 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [showHospitalDropdown, setShowHospitalDropdown] = useState(false);
   const [treatmentType, setTreatmentType] = useState<TreatmentType>("NgoaiTru");
   const [cause, setCause] = useState("Ốm bệnh");
+  // Conditional fields based on selected cause (Ốm bệnh, Tai nạn, Thai sản)
+  const [accidentDate, setAccidentDate] = useState("2026-07-14");
+  const [accidentPlace, setAccidentPlace] = useState("");
+  const [accidentDesc, setAccidentDesc] = useState("");
+  const [symptomName, setSymptomName] = useState("");
+  const [hasPastHistory, setHasPastHistory] = useState(false);
+  const [expectedBirthDate, setExpectedBirthDate] = useState("");
+  const [birthMethod, setBirthMethod] = useState("SinhThuong");
+  
+  const [treatmentDate, setTreatmentDate] = useState("2026-07-14");
   const [amountStr, setAmountStr] = useState("");
+  const [selectedLinkedInvoices, setSelectedLinkedInvoices] = useState<number[]>([]);
+  const [previewDoc, setPreviewDoc] = useState<{ name: string; size: string; type: string; category: string } | null>(null);
+  const [confirmedDocs, setConfirmedDocs] = useState<string[]>([]);
   const [hasOtherInsurance, setHasOtherInsurance] = useState<boolean>(false);
   const [eventError, setEventError] = useState("");
+  const [isManualReview, setIsManualReview] = useState(false);
+  const [scannedReceipts, setScannedReceipts] = useState<{ name: string; amount: number }[]>([]);
+  const [showGycPreview, setShowGycPreview] = useState(false);
 
   // OCR Scan Simulation States
   const [isScanningOcr, setIsScanningOcr] = useState(false);
@@ -241,7 +258,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
           setBankName("Vietcombank (VCB)");
           setBankAccount("101889922233");
           setBankOwner(matchingCard.name.toUpperCase());
-          setEmail("khachhang.care@gmail.com");
+          setEmail(matchingCard.relationship === "Bản thân" ? "khachhang.care@gmail.com" : "nhanvienchinh.fpt@gmail.com");
         }
       }
     }
@@ -250,22 +267,37 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const handleOcrScan = (amountVal: number, invoiceName: string) => {
     setIsScanningOcr(true);
     setOcrSuccess(false);
-    setOcrLog("PTI OCR: Đang kết nối tệp tin & tải chứng từ y tế...");
+    setIsManualReview(false);
+    setOcrLog("PTI Care Smart OCR: Đang kết nối tệp tin & tải chứng từ thanh toán...");
     
     setTimeout(() => {
-      setOcrLog("PTI Care Smart OCR: Đang phân tích bố cục hình ảnh...");
-    }, 1000);
+      setOcrLog("PTI Care Smart OCR: Đang phân tích cấu trúc chữ viết tay & mộc dấu...");
+    }, 800);
 
     setTimeout(() => {
-      setOcrLog(`Phát hiện: ${invoiceName}. Đang tổng hợp hóa đơn & chi tiết thanh toán...`);
-    }, 2200);
+      setOcrLog(`Bóc tách thành công từ tệp: ${invoiceName}. Đang tích lũy giá trị vào yêu cầu bồi thường...`);
+    }, 1600);
 
     setTimeout(() => {
       setIsScanningOcr(false);
       setOcrSuccess(true);
-      setOcrLog(`Trích xuất thành công: ${amountVal.toLocaleString("vi-VN")} VNĐ từ ${invoiceName}`);
-      setAmountStr(amountVal.toLocaleString("vi-VN"));
-    }, 3500);
+      setOcrLog(`Trích xuất thành công: +${amountVal.toLocaleString("vi-VN")} VNĐ từ ${invoiceName}`);
+      
+      setScannedReceipts(prev => {
+        const updated = [...prev, { name: invoiceName, amount: amountVal }];
+        const sum = updated.reduce((acc, curr) => acc + curr.amount, 0);
+        setAmountStr(sum.toLocaleString("vi-VN"));
+        return updated;
+      });
+
+      // Automatically add to paymentDocs so user doesn't have to upload again in Step 3!
+      setPaymentDocs(prev => {
+        if (!prev.some(d => d.name === `${invoiceName}.pdf`)) {
+          return [...prev, { name: `${invoiceName}.pdf`, size: "450 KB", type: "application/pdf" }];
+        }
+        return prev;
+      });
+    }, 2400);
   };
 
   // STEP 4: Document Attachments & Terms
@@ -281,6 +313,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
 
   // Terms & Verification (Merged into Step 4)
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [hasReadGyc, setHasReadGyc] = useState(false);
   const [verificationMethod, setVerificationMethod] = useState<"FaceID" | "OTP">("FaceID");
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
@@ -391,19 +424,58 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
         setEventError("Vui lòng nhập tổng số tiền yêu cầu bồi thường hợp lệ.");
         return;
       }
-      setStep(3);
-    } else if (step === 3) {
-      setInfoError("");
-      if (receiveMethod === "ChuyenKhoan") {
-        if (!bankName.trim() || !bankAccount.trim() || !bankOwner.trim()) {
-          setInfoError("Vui lòng điền đầy đủ thông tin tài khoản ngân hàng nhận bồi thường.");
-          return;
-        }
-      }
-      if (!email.trim() || !email.includes("@")) {
-        setInfoError("Vui lòng nhập email hợp lệ để nhận thông báo giải quyết.");
+      
+      // Date Picker Validation & Contract Expiry range validation
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      if (!treatmentDate || !datePattern.test(treatmentDate)) {
+        setEventError("Vui lòng chọn ngày điều trị hợp lệ.");
         return;
       }
+      if (selectedCard && selectedCard.expiryDate) {
+        const parts = selectedCard.expiryDate.split("/");
+        if (parts.length === 3) {
+          const expDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          const treatDate = new Date(treatmentDate);
+          if (treatDate > expDate) {
+            setEventError(`Sự kiện bảo hiểm bị từ chối: Ngày điều trị (${treatDate.toLocaleDateString("vi-VN")}) vượt quá thời hạn hiệu lực của hợp đồng bảo hiểm (${selectedCard.expiryDate}).`);
+            return;
+          }
+        }
+      }
+      // Step 3 is now Document Uploads
+      setStep(3);
+    } else if (step === 3) {
+      setDocError("");
+      
+      // Basic document validation in Step 3
+      if (medicalDocs.length === 0) {
+        setDocError("Bắt buộc: Đính kèm ít nhất một chứng từ y tế (sổ khám, đơn thuốc, chỉ định...).");
+        return;
+      }
+      if (paymentDocs.length === 0) {
+        setDocError("Bắt buộc: Đính kèm ít nhất một chứng từ thanh toán (hóa đơn, phiếu thu...).");
+        return;
+      }
+      
+      // Conditional document validation in Step 3
+      if (cause === "Tai nạn" && accidentDocs.length === 0) {
+        setDocError("Bắt buộc: Tải lên 'Biên bản xác nhận tai nạn' khi nguyên nhân là Tai nạn.");
+        return;
+      }
+      if (treatmentType === "NoiTru" && hospitalReleaseDocs.length === 0) {
+        setDocError("Bắt buộc: Tải lên 'Giấy ra viện & tóm tắt bệnh án' khi điều trị Nội trú.");
+        return;
+      }
+      
+      const isCurrentDependent = isCorporateMode 
+        ? currentEmployee?.isDependent 
+        : selectedCard?.relationship !== "Bản thân";
+      if (isCurrentDependent && authDocs.length === 0) {
+        setDocError("Bắt buộc: Đính kèm 'Giấy ủy quyền bồi thường hộ' từ Người được bảo hiểm chính.");
+        return;
+      }
+      
+      // Step 4 is now COMPENSATION PAYMENT INFO & SIGNING
       setStep(4);
     }
   };
@@ -414,40 +486,18 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
     }
   };
 
-  // Handle Biometric/OTP Verification and final Submission
+  // Handle Biometric/OTP Verification and final Submission in Step 4
   const handleVerifyAndSubmit = () => {
-    setDocError("");
+    setInfoError("");
 
-    // 1. Basic document requirements
-    if (medicalDocs.length === 0) {
-      setDocError("Vui lòng đính kèm ít nhất một chứng từ y tế (sổ khám, đơn thuốc...).");
-      return;
+    if (receiveMethod === "ChuyenKhoan") {
+      if (!bankName.trim() || !bankAccount.trim() || !bankOwner.trim()) {
+        setInfoError("Vui lòng điền đầy đủ thông tin tài khoản ngân hàng nhận bồi thường.");
+        return;
+      }
     }
-    if (paymentDocs.length === 0) {
-      setDocError("Vui lòng đính kèm ít nhất một hóa đơn / phiếu thu thanh toán.");
-      return;
-    }
-    
-    // 2. Strict Conditional Document Requirements
-    // Rule A: Accident (Tai nạn) -> Requires accident report
-    if (cause === "Tai nạn" && accidentDocs.length === 0) {
-      setDocError("Bắt buộc tải lên 'Biên bản xác nhận tai nạn' khi nguyên nhân là Tai nạn.");
-      return;
-    }
-
-    // Rule B: Inpatient treatment (Nội trú) -> Requires release papers
-    if (treatmentType === "NoiTru" && hospitalReleaseDocs.length === 0) {
-      setDocError("Bắt buộc tải lên 'Giấy ra viện & tóm tắt bệnh án' khi hình thức là Điều trị Nội trú.");
-      return;
-    }
-
-    // Rule C: Dependent (Người phụ thuộc) -> Requires power of attorney
-    const isCurrentDependent = isCorporateMode 
-      ? currentEmployee?.isDependent 
-      : selectedCard?.relationship !== "Bản thân";
-
-    if (isCurrentDependent && authDocs.length === 0) {
-      setDocError("Bắt buộc đính kèm 'Giấy ủy quyền bồi thường hộ' từ Người được bảo hiểm chính.");
+    if (!email.trim() || !email.includes("@")) {
+      setInfoError("Vui lòng nhập email hợp lệ để nhận thông báo giải quyết.");
       return;
     }
 
@@ -555,8 +605,8 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   switch (num) {
                     case 1: return <Shield size={11} className="stroke-[2.5]" />;
                     case 2: return <FileText size={11} className="stroke-[2.5]" />;
-                    case 3: return <Banknote size={11} className="stroke-[2.5]" />;
-                    case 4: return <Upload size={11} className="stroke-[2.5]" />;
+                    case 3: return <Upload size={11} className="stroke-[2.5]" />;
+                    case 4: return <Banknote size={11} className="stroke-[2.5]" />;
                     default: return <Check size={11} className="stroke-[2.5]" />;
                   }
                 };
@@ -585,8 +635,8 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
             <div className="flex justify-between mt-2 px-1 text-[9px] font-bold select-none text-center">
               <span className={step === 1 ? "text-blue-600 font-extrabold" : "text-slate-500"}>Chọn người</span>
               <span className={step === 2 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Khai báo</span>
-              <span className={step === 3 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Nhận tiền</span>
-              <span className={step === 4 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Đính kèm</span>
+              <span className={step === 3 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Đính kèm</span>
+              <span className={step === 4 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Nhận tiền & Ký</span>
             </div>
           </div>
         </div>
@@ -926,6 +976,113 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   )}
                 </div>
 
+                {/* 🤝 Linked hospital invoices suggestion */}
+                <AnimatePresence>
+                  {hospital && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3.5 space-y-2.5 overflow-hidden shadow-sm"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                          </span>
+                          <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">
+                            Hóa đơn liên kết tự động
+                          </span>
+                        </div>
+                        <span className="text-[8px] text-slate-400 font-bold bg-slate-100/50 px-1.5 py-0.5 rounded">Hệ thống liên kết</span>
+                      </div>
+                      
+                      <p className="text-[10px] leading-relaxed text-slate-600 font-medium">
+                        Hệ thống bảo lãnh PTI Care đã phát hiện hóa đơn điện tử tương thích tại <strong>{hospital}</strong>. Chọn để tự động liên kết nhanh:
+                      </p>
+
+                      <div className="space-y-1.5">
+                        {(() => {
+                          const short = hospital.split(" ").map(w => w[0]).join("").toUpperCase();
+                          const linkedInvoices = [
+                            { id: 1, code: `${short}-eInv-8891`, desc: "Phí khám & Chẩn đoán hình ảnh", amount: 1850000 },
+                            { id: 2, code: `${short}-eInv-8892`, desc: "Đơn thuốc & Vật tư y tế", amount: 620000 }
+                          ];
+                          return linkedInvoices.map((inv) => {
+                            const isSelected = selectedLinkedInvoices.includes(inv.id);
+                            return (
+                              <button
+                                key={inv.id}
+                                type="button"
+                                onClick={() => {
+                                  let newSelected: number[];
+                                  if (isSelected) {
+                                    newSelected = selectedLinkedInvoices.filter(id => id !== inv.id);
+                                    setScannedReceipts(prev => prev.filter(r => r.name !== inv.code));
+                                  } else {
+                                    newSelected = [...selectedLinkedInvoices, inv.id];
+                                    setScannedReceipts(prev => {
+                                      if (prev.some(r => r.name === inv.code)) return prev;
+                                      return [...prev, { name: inv.code, amount: inv.amount }];
+                                    });
+                                  }
+                                  setSelectedLinkedInvoices(newSelected);
+                                  
+                                  // Recalculate amountStr
+                                  setTimeout(() => {
+                                    setScannedReceipts(prev => {
+                                      const sum = prev.reduce((acc, curr) => acc + curr.amount, 0);
+                                      setAmountStr(sum > 0 ? sum.toLocaleString("vi-VN") : "");
+                                      return prev;
+                                    });
+                                  }, 50);
+                                }}
+                                className={`w-full text-left p-2.5 rounded-xl border text-[10px] flex justify-between items-center transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/15"
+                                    : "bg-white border-slate-100 text-slate-600 hover:border-blue-200"
+                                }`}
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`font-mono font-bold text-[8px] px-1 py-0.2 rounded uppercase ${isSelected ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600"}`}>
+                                      {inv.code}
+                                    </span>
+                                    <span className="font-bold truncate max-w-[170px]">{inv.desc}</span>
+                                  </div>
+                                </div>
+                                <span className={`font-mono font-extrabold ${isSelected ? "text-white" : "text-blue-600"}`}>
+                                  {inv.amount.toLocaleString("vi-VN")} đ
+                                </span>
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Treatment Date */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1 flex items-center gap-1">
+                    <Calendar size={13} className="text-blue-500" />
+                    <span>Ngày điều trị *</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={treatmentDate}
+                      onChange={(e) => setTreatmentDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 glass-input"
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1 ml-1 font-semibold leading-relaxed">
+                    Hệ thống sẽ đối chiếu ngày này với thời hạn hợp đồng bảo hiểm ({selectedCard?.expiryDate || "N/A"}) để xác định hiệu lực sự kiện.
+                  </p>
+                </div>
+
                 {/* Treatment Type */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1">
@@ -971,16 +1128,16 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   </div>
                 </div>
 
-                {/* Cause of risk with 3 options: Ốm bệnh, Tai nạn, Phẫu thuật */}
+                {/* Cause of risk with 3 options: Ốm bệnh, Tai nạn, Thai sản */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1">
-                    Nguyên nhân rủi ro *
+                    Quyền lợi bảo hiểm *
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { label: "Ốm bệnh", color: "blue" },
                       { label: "Tai nạn", color: "red" },
-                      { label: "Phẫu thuật", color: "emerald" }
+                      { label: "Thai sản", color: "emerald" }
                     ].map((type, idx) => {
                       const isSelected = cause === type.label;
                       return (
@@ -1001,54 +1158,195 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   </div>
                 </div>
 
-                {/* AI OCR Scanner Integration */}
-                <div className="bg-blue-50/40 rounded-2.5xl p-4 border border-blue-100/70 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                        <Sparkles size={12} className="animate-pulse" />
+                {/* Conditional fields based on selected cause */}
+                <AnimatePresence mode="wait">
+                  {cause === "Ốm bệnh" && (
+                    <motion.div
+                      key="cause-ombenh"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3 bg-slate-50/40 p-3 rounded-2xl border border-slate-100 overflow-hidden"
+                    >
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Tên bệnh / Triệu chứng chính *</label>
+                        <input
+                          type="text"
+                          value={symptomName}
+                          onChange={(e) => setSymptomName(e.target.value)}
+                          placeholder="Ví dụ: Viêm phế quản, sốt xuất huyết..."
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                        />
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-slate-800">Trích xuất nhanh bằng OCR AI</h4>
-                        <p className="text-[9px] text-slate-400 font-bold">Quét hóa đơn / phiếu thu để tự động tính tiền bồi thường</p>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Tiền sử bệnh trước đây?</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setHasPastHistory(false)}
+                            className={`py-1.5 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all border ${
+                              !hasPastHistory
+                                ? "bg-white border-blue-500 text-blue-600 shadow-sm"
+                                : "bg-transparent border-slate-100 text-slate-400 hover:text-slate-600"
+                            }`}
+                          >
+                            Mới bị lần đầu
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHasPastHistory(true)}
+                            className={`py-1.5 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all border ${
+                              hasPastHistory
+                                ? "bg-white border-blue-500 text-blue-600 shadow-sm"
+                                : "bg-transparent border-slate-100 text-slate-400 hover:text-slate-600"
+                            }`}
+                          >
+                            Đã từng điều trị
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </motion.div>
+                  )}
 
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { name: "Hóa đơn Hoàn Mỹ", amount: 3450000, desc: "3,450,000 đ" },
-                      { name: "Thuốc Hồng Ngọc", amount: 1280000, desc: "1,280,000 đ" },
-                      { name: "Sao kê Bạch Mai", amount: 7850000, desc: "7,850,000 đ" }
-                    ].map((invoice, idx) => (
+                  {cause === "Tai nạn" && (
+                    <motion.div
+                      key="cause-tainan"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3 bg-red-50/10 p-3 rounded-2xl border border-red-100/30 overflow-hidden"
+                    >
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1">Ngày xảy ra tai nạn *</label>
+                          <input
+                            type="date"
+                            value={accidentDate}
+                            onChange={(e) => setAccidentDate(e.target.value)}
+                            className="w-full px-3 py-1.5 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1">Địa điểm xảy ra *</label>
+                          <input
+                            type="text"
+                            value={accidentPlace}
+                            onChange={(e) => setAccidentPlace(e.target.value)}
+                            placeholder="Ví dụ: Cơ quan, ngoài đường..."
+                            className="w-full px-3 py-1.5 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Mô tả tóm tắt sự việc *</label>
+                        <textarea
+                          rows={2}
+                          value={accidentDesc}
+                          onChange={(e) => setAccidentDesc(e.target.value)}
+                          placeholder="Mô tả diễn biến vụ tai nạn..."
+                          className="w-full px-3 py-1.5 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {cause === "Thai sản" && (
+                    <motion.div
+                      key="cause-thaisan"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3 bg-emerald-50/10 p-3 rounded-2xl border border-emerald-100/30 overflow-hidden"
+                    >
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Ngày sinh (hoặc Ngày sinh dự kiến) *</label>
+                        <input
+                          type="date"
+                          value={expectedBirthDate}
+                          onChange={(e) => setExpectedBirthDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Phương pháp sinh con *</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBirthMethod("SinhThuong")}
+                            className={`py-1.5 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all border ${
+                              birthMethod === "SinhThuong"
+                                ? "bg-white border-emerald-500 text-emerald-600 shadow-sm"
+                                : "bg-transparent border-slate-100 text-slate-400 hover:text-slate-600"
+                            }`}
+                          >
+                            Sinh thường (Âm đạo)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBirthMethod("SinhMo")}
+                            className={`py-1.5 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all border ${
+                              birthMethod === "SinhMo"
+                                ? "bg-white border-emerald-500 text-emerald-600 shadow-sm"
+                                : "bg-transparent border-slate-100 text-slate-400 hover:text-slate-600"
+                            }`}
+                          >
+                            Sinh mổ (Phẫu thuật)
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+
+
+                {/* Accumulated Scanned Receipts list */}
+                {scannedReceipts.length > 0 && (
+                  <div className="bg-slate-50 rounded-2xl p-3.5 space-y-2 border border-slate-100 shadow-inner">
+                    <div className="flex justify-between items-center text-[9px] font-extrabold text-slate-500 uppercase tracking-wider px-1">
+                      <span>Tích lũy hóa đơn đã quét ({scannedReceipts.length})</span>
                       <button
-                        key={idx}
                         type="button"
-                        disabled={isScanningOcr}
-                        onClick={() => handleOcrScan(invoice.amount, invoice.name)}
-                        className="p-2 rounded-xl bg-white border border-slate-150 hover:border-blue-300 text-slate-600 hover:text-blue-600 transition-all text-center cursor-pointer disabled:opacity-50 space-y-1 shadow-sm"
+                        onClick={() => {
+                          setScannedReceipts([]);
+                          setAmountStr("");
+                          setPaymentDocs([]);
+                        }}
+                        className="text-red-500 hover:underline cursor-pointer font-bold"
                       >
-                        <FileText size={14} className="mx-auto text-slate-400" />
-                        <p className="text-[8px] font-black tracking-tight truncate leading-tight">{invoice.name}</p>
-                        <p className="text-[9px] font-black text-blue-600 font-mono leading-none">{invoice.desc}</p>
+                        Xóa tất cả
                       </button>
-                    ))}
+                    </div>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {scannedReceipts.map((rec, rIdx) => (
+                        <div key={rIdx} className="flex justify-between items-center bg-white border border-slate-150 px-3 py-2 rounded-xl text-[10px] shadow-xs">
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <FileText size={11} className="text-slate-400 shrink-0" />
+                            <span className="font-bold text-slate-700 truncate max-w-[150px]">{rec.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-blue-600 font-bold">{rec.amount.toLocaleString("vi-VN")} đ</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setScannedReceipts(prev => {
+                                  const updated = prev.filter((_, idx) => idx !== rIdx);
+                                  const sum = updated.reduce((acc, curr) => acc + curr.amount, 0);
+                                  setAmountStr(sum > 0 ? sum.toLocaleString("vi-VN") : "");
+                                  return updated;
+                                });
+                                setPaymentDocs(prev => prev.filter(d => d.name !== `${rec.name}.pdf`));
+                              }}
+                              className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-
-                  {isScanningOcr && (
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex items-center gap-2.5">
-                      <RefreshCw size={14} className="text-blue-500 animate-spin shrink-0" />
-                      <span className="text-[9px] font-bold text-slate-600 animate-pulse">{ocrLog}</span>
-                    </div>
-                  )}
-
-                  {!isScanningOcr && ocrSuccess && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 flex items-center gap-2 text-emerald-800">
-                      <Check size={14} className="text-emerald-500 shrink-0 font-bold" />
-                      <span className="text-[9px] font-bold">{ocrLog}</span>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Total Claim Amount */}
                 <div>
@@ -1106,10 +1404,418 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
             </motion.div>
           )}
 
-          {/* STEP 3: COMPENSATION PAYMENT INFO - READ ONLY FOR HR / ROLE LOCKED */}
+          {/* STEP 3: DOCUMENT UPLOADS WITH CONDITIONAL RULES */}
           {step === 3 && (
             <motion.div
               key="step-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {docError && (
+                <div className="flex gap-2 items-start text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 font-bold">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  <span>{docError}</span>
+                </div>
+              )}
+
+              {/* 1. Medical Documents Box */}
+              <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 flex items-center justify-between">
+                    <span>1. Chứng từ y tế *</span>
+                    <span className="text-[10px] font-medium text-slate-400">(Sổ y bạ, phiếu khám, đơn thuốc...)</span>
+                  </h4>
+                  <p className="text-[9px] text-slate-400 mt-0.5">Yêu cầu chụp rõ nét toàn bộ trang sổ và chỉ định điều trị</p>
+                </div>
+
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, "medical")}
+                  className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition-all"
+                  onClick={() => triggerMockUpload("medical")}
+                >
+                  {isUploading === "medical" ? (
+                    <div className="space-y-2 py-2">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 mx-auto animate-pulse">
+                        <Upload size={18} />
+                      </div>
+                      <p className="text-xs font-bold text-blue-600">Đang tải tài liệu lên ({uploadProgress}%)</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-center gap-3 text-slate-400">
+                        <Camera size={20} />
+                        <Upload size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-slate-600">Bấm để Chụp / Đính kèm tài liệu y tế</p>
+                      <p className="text-[9px] text-slate-400">Hỗ trợ JPG, PNG, PDF tối đa 10MB</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* File list */}
+                {medicalDocs.length > 0 && (
+                  <div className="space-y-1.5">
+                    {medicalDocs.map((doc, idx) => {
+                      const isConfirmed = confirmedDocs.includes(doc.name);
+                      return (
+                        <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                          isConfirmed 
+                            ? "bg-emerald-50/50 border-emerald-200" 
+                            : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
+                        }`}>
+                          <div 
+                            onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
+                            className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
+                          >
+                            <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="font-bold text-slate-700 truncate">{doc.name}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-slate-400 shrink-0">({doc.size})</span>
+                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
+                              className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                            >
+                              Xem
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => setMedicalDocs(medicalDocs.filter((_, i) => i !== idx))}
+                              className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Payment Documents Box */}
+              <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 flex items-center justify-between">
+                    <span>2. Chứng từ thanh toán *</span>
+                    <span className="text-[10px] font-medium text-slate-400">(Hóa đơn chuyển đổi, phiếu thu...)</span>
+                  </h4>
+                  <p className="text-[9px] text-slate-400 mt-0.5">Bao gồm hóa đơn GTGT điện tử (VAT) hoặc hóa đơn hợp lệ bệnh viện</p>
+                </div>
+
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, "payment")}
+                  className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition-all"
+                  onClick={() => triggerMockUpload("payment")}
+                >
+                  {isUploading === "payment" ? (
+                    <div className="space-y-2 py-2">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 mx-auto animate-pulse">
+                        <Upload size={18} />
+                      </div>
+                      <p className="text-xs font-bold text-blue-600">Đang tải hóa đơn lên ({uploadProgress}%)</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-center gap-3 text-slate-400">
+                        <Camera size={20} />
+                        <Upload size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-slate-600">Bấm để Chụp / Đính kèm chứng từ thanh toán</p>
+                    </div>
+                  )}
+                </div>
+
+                {paymentDocs.length > 0 && (
+                  <div className="space-y-1.5">
+                    {paymentDocs.map((doc, idx) => {
+                      const isConfirmed = confirmedDocs.includes(doc.name);
+                      return (
+                        <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                          isConfirmed 
+                            ? "bg-emerald-50/50 border-emerald-200" 
+                            : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
+                        }`}>
+                          <div 
+                            onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
+                            className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
+                          >
+                            <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="font-bold text-slate-700 truncate">{doc.name}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-slate-400 shrink-0">({doc.size})</span>
+                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
+                              className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                            >
+                              Xem
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => setPaymentDocs(paymentDocs.filter((_, i) => i !== idx))}
+                              className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Conditional: Accident Box (Bắt buộc nếu cause === Tai nạn) */}
+              {cause === "Tai nạn" && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div>
+                    <h4 className="text-xs font-black text-red-900 flex items-center justify-between">
+                      <span>3. Biên bản xác nhận tai nạn * (Bắt buộc)</span>
+                      <span className="text-[9px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Tai nạn</span>
+                    </h4>
+                    <p className="text-[9px] text-red-800 mt-0.5">Yêu cầu Biên bản tai nạn sinh hoạt hoặc tai nạn giao thông có xác nhận của đơn vị công tác/cơ quan công an.</p>
+                  </div>
+
+                  <div 
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, "accident")}
+                    className="border-2 border-dashed border-red-300 hover:border-red-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
+                    onClick={() => triggerMockUpload("accident")}
+                  >
+                    {isUploading === "accident" ? (
+                      <div className="space-y-2 py-2">
+                        <p className="text-xs font-bold text-red-700 animate-pulse">Đang tải biên bản tai nạn ({uploadProgress}%)</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 text-red-700">
+                        <div className="flex justify-center gap-3">
+                          <Camera size={18} />
+                          <Upload size={18} />
+                        </div>
+                        <p className="text-xs font-bold">Chụp ảnh / Tải lên Biên bản xác nhận tai nạn</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {accidentDocs.length > 0 && (
+                    <div className="space-y-1.5">
+                      {accidentDocs.map((doc, idx) => {
+                        const isConfirmed = confirmedDocs.includes(doc.name);
+                        return (
+                          <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                            isConfirmed 
+                              ? "bg-emerald-50 border-emerald-200" 
+                              : "bg-white border-red-200 hover:bg-slate-50"
+                          }`}>
+                            <div 
+                              onClick={() => setPreviewDoc({ ...doc, category: "accident" })}
+                              className="flex items-center gap-2 mr-2 cursor-pointer flex-grow"
+                            >
+                              <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-red-600 shrink-0"} />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="font-bold text-red-950 truncate">{doc.name}</span>
+                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({ ...doc, category: "accident" })}
+                                className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                              >
+                                Xem
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setAccidentDocs([])}
+                                className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 4. Conditional: Inpatient (Bắt buộc nếu treatmentType === NoiTru) */}
+              {treatmentType === "NoiTru" && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div>
+                    <h4 className="text-xs font-black text-emerald-950 flex items-center justify-between">
+                      <span>4. Giấy ra viện + tóm tắt bệnh án * (Bắt buộc)</span>
+                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Nội trú</span>
+                    </h4>
+                    <p className="text-[9px] text-emerald-800 mt-0.5">Yêu cầu đính kèm Giấy ra viện có mộc của bệnh viện điều trị và Bảng kê tóm tắt bệnh án phẫu thuật/điều trị nội trú.</p>
+                  </div>
+
+                  <div 
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, "release")}
+                    className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
+                    onClick={() => triggerMockUpload("release")}
+                  >
+                    {isUploading === "release" ? (
+                      <div className="space-y-2 py-2">
+                        <p className="text-xs font-bold text-emerald-700 animate-pulse">Đang tải hồ sơ ra viện ({uploadProgress}%)</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 text-emerald-700">
+                        <div className="flex justify-center gap-3">
+                          <Camera size={18} />
+                          <Upload size={18} />
+                        </div>
+                        <p className="text-xs font-bold">Chụp ảnh / Tải Giấy ra viện + Tóm tắt bệnh án</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {hospitalReleaseDocs.length > 0 && (
+                    <div className="space-y-1.5">
+                      {hospitalReleaseDocs.map((doc, idx) => {
+                        const isConfirmed = confirmedDocs.includes(doc.name);
+                        return (
+                          <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                            isConfirmed 
+                              ? "bg-emerald-50 border-emerald-200" 
+                              : "bg-white border-emerald-200 hover:bg-slate-50"
+                          }`}>
+                            <div 
+                              onClick={() => setPreviewDoc({ ...doc, category: "release" })}
+                              className="flex items-center gap-2 mr-2 cursor-pointer flex-grow"
+                            >
+                              <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-emerald-600 shrink-0"} />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="font-bold text-emerald-950 truncate">{doc.name}</span>
+                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({ ...doc, category: "release" })}
+                                className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                              >
+                                Xem
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setHospitalReleaseDocs([])}
+                                className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 5. Conditional: Dependent Authorization (Bắt buộc nếu đối tượng được khai hộ là Người phụ thuộc) */}
+              {(isCorporateMode ? currentEmployee?.isDependent : selectedCard?.relationship !== "Bản thân") && (
+                <div className="bg-amber-50 border border-amber-250 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div>
+                    <h4 className="text-xs font-black text-amber-900 flex items-center justify-between">
+                      <span>5. Giấy ủy quyền bồi thường hộ * (Bắt buộc)</span>
+                      <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Người phụ thuộc</span>
+                    </h4>
+                    <p className="text-[9px] text-amber-800 mt-0.5">Để đảm bảo tính pháp lý, bạn cần tải lên bản Chụp Giấy ủy quyền bồi thường có chữ ký xác nhận của nhân viên chính ({(selectedCard as any)?.bankOwner || "Người được bảo hiểm chính"}).</p>
+                  </div>
+
+                  <div 
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, "auth")}
+                    className="border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
+                    onClick={() => triggerMockUpload("auth")}
+                  >
+                    {isUploading === "auth" ? (
+                      <div className="space-y-2 py-2">
+                        <p className="text-xs font-bold text-amber-800 animate-pulse">Đang tải giấy ủy quyền ({uploadProgress}%)</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 text-amber-800">
+                        <div className="flex justify-center gap-3">
+                          <Camera size={18} />
+                          <Upload size={18} />
+                        </div>
+                        <p className="text-xs font-bold">Chụp ảnh / Tải lên Giấy ủy quyền bồi thường hộ</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {authDocs.length > 0 && (
+                    <div className="space-y-1.5">
+                      {authDocs.map((doc, idx) => {
+                        const isConfirmed = confirmedDocs.includes(doc.name);
+                        return (
+                          <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                            isConfirmed 
+                              ? "bg-emerald-50 border-emerald-200" 
+                              : "bg-white border-amber-200 hover:bg-slate-50"
+                          }`}>
+                            <div 
+                              onClick={() => setPreviewDoc({ ...doc, category: "auth" })}
+                              className="flex items-center gap-2 mr-2 cursor-pointer flex-grow"
+                            >
+                              <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-amber-600 shrink-0"} />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="font-bold text-amber-950 truncate">{doc.name}</span>
+                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({ ...doc, category: "auth" })}
+                                className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                              >
+                                Xem
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setAuthDocs([])}
+                                className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* STEP 4: COMPENSATION PAYMENT INFO & DIGITAL SIGNATURE */}
+          {step === 4 && (
+            <motion.div
+              key="step-4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1138,7 +1844,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                 </h4>
 
                 {infoError && (
-                  <div className="flex gap-2 items-start text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-100">
+                  <div className="flex gap-2 items-start text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 font-bold">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
                     <span>{infoError}</span>
                   </div>
@@ -1232,326 +1938,70 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                       placeholder="example@fsoft.com.vn"
                     />
                   </div>
-                  <p className="text-[9px] text-slate-400 mt-1 ml-1 font-medium">
-                    PTI Care sẽ cc thư gửi sao kê bồi thường điện tử tới email này ngay khi duyệt.
+                  <p className="text-[9px] text-slate-400 mt-1 ml-1 font-semibold leading-relaxed">
+                    Hệ thống tự động pre-fill từ hồ sơ đăng ký nhân sự chính để hạn chế gõ sai địa chỉ nhận sao kê quyết định bồi thường điện tử.
                   </p>
                 </div>
               </div>
-            </motion.div>
-          )}
 
-          {/* STEP 4: DOCUMENT UPLOADS WITH CONDITIONAL RULES */}
-          {step === 4 && (
-            <motion.div
-              key="step-4"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-4"
-            >
-              {docError && (
-                <div className="flex gap-2 items-start text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 font-bold">
-                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
-                  <span>{docError}</span>
-                </div>
-              )}
-
-              {/* 1. Medical Documents Box */}
-              <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
-                <div>
-                  <h4 className="text-xs font-black text-slate-700 flex items-center justify-between">
-                    <span>1. Chứng từ y tế *</span>
-                    <span className="text-[10px] font-medium text-slate-400">(Sổ y bạ, phiếu khám, đơn thuốc...)</span>
-                  </h4>
-                  <p className="text-[9px] text-slate-400 mt-0.5">Yêu cầu chụp rõ nét toàn bộ trang sổ và chỉ định điều trị</p>
-                </div>
-
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, "medical")}
-                  className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition-all"
-                  onClick={() => triggerMockUpload("medical")}
-                >
-                  {isUploading === "medical" ? (
-                    <div className="space-y-2 py-2">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 mx-auto animate-pulse">
-                        <Upload size={18} />
-                      </div>
-                      <p className="text-xs font-bold text-blue-600">Đang tải tài liệu lên ({uploadProgress}%)</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-center gap-3 text-slate-400">
-                        <Camera size={20} />
-                        <Upload size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600">Bấm để Chụp / Đính kèm tài liệu y tế</p>
-                      <p className="text-[9px] text-slate-400">Hỗ trợ JPG, PNG, PDF tối đa 10MB</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* File list */}
-                {medicalDocs.length > 0 && (
-                  <div className="space-y-1.5">
-                    {medicalDocs.map((doc, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-slate-100/60 rounded-xl px-3 py-2 text-[10px] border border-slate-200/50">
-                        <div className="flex items-center gap-2 mr-2 overflow-hidden">
-                          <FileText size={14} className="text-blue-500 shrink-0" />
-                          <span className="font-bold text-slate-700 truncate">{doc.name}</span>
-                          <span className="text-slate-400 shrink-0">({doc.size})</span>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setMedicalDocs(medicalDocs.filter((_, i) => i !== idx))}
-                          className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
+              {/* View Full Claim Document Preview Action */}
+              <div className="bg-white rounded-2.5xl p-5 border border-slate-150 shadow-sm space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                    <FileText size={18} />
                   </div>
-                )}
-              </div>
-
-              {/* 2. Payment Documents Box */}
-              <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
-                <div>
-                  <h4 className="text-xs font-black text-slate-700 flex items-center justify-between">
-                    <span>2. Chứng từ thanh toán *</span>
-                    <span className="text-[10px] font-medium text-slate-400">(Hóa đơn chuyển đổi, phiếu thu...)</span>
-                  </h4>
-                  <p className="text-[9px] text-slate-400 mt-0.5">Bao gồm hóa đơn GTGT điện tử (VAT) hoặc hóa đơn hợp lệ bệnh viện</p>
-                </div>
-
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, "payment")}
-                  className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition-all"
-                  onClick={() => triggerMockUpload("payment")}
-                >
-                  {isUploading === "payment" ? (
-                    <div className="space-y-2 py-2">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 mx-auto animate-pulse">
-                        <Upload size={18} />
-                      </div>
-                      <p className="text-xs font-bold text-blue-600">Đang tải hóa đơn lên ({uploadProgress}%)</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-center gap-3 text-slate-400">
-                        <Camera size={20} />
-                        <Upload size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600">Bấm để Chụp / Đính kèm chứng từ thanh toán</p>
-                    </div>
-                  )}
-                </div>
-
-                {paymentDocs.length > 0 && (
-                  <div className="space-y-1.5">
-                    {paymentDocs.map((doc, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-slate-100/60 rounded-xl px-3 py-2 text-[10px] border border-slate-200/50">
-                        <div className="flex items-center gap-2 mr-2 overflow-hidden">
-                          <FileText size={14} className="text-blue-500 shrink-0" />
-                          <span className="font-bold text-slate-700 truncate">{doc.name}</span>
-                          <span className="text-slate-400 shrink-0">({doc.size})</span>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setPaymentDocs(paymentDocs.filter((_, i) => i !== idx))}
-                          className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* 3. Conditional: Accident Box (Bắt buộc nếu cause === Tai nạn) */}
-              {cause === "Tai nạn" && (
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm space-y-3">
-                  <div>
-                    <h4 className="text-xs font-black text-red-900 flex items-center justify-between">
-                      <span>3. Biên bản xác nhận tai nạn * (Bắt buộc)</span>
-                      <span className="text-[9px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Tai nạn</span>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      Xác nhận giấy yêu cầu bồi thường
                     </h4>
-                    <p className="text-[9px] text-red-800 mt-0.5">Yêu cầu Biên bản tai nạn sinh hoạt hoặc tai nạn giao thông có xác nhận của đơn vị công tác/cơ quan công an.</p>
+                    <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                      Vui lòng kiểm tra lại thông tin chi tiết và đọc hết toàn bộ văn bản để có thể tick xác nhận yêu cầu bồi thường này.
+                    </p>
                   </div>
-
-                  <div 
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, "accident")}
-                    className="border-2 border-dashed border-red-300 hover:border-red-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
-                    onClick={() => triggerMockUpload("accident")}
-                  >
-                    {isUploading === "accident" ? (
-                      <div className="space-y-2 py-2">
-                        <p className="text-xs font-bold text-red-700 animate-pulse">Đang tải biên bản tai nạn ({uploadProgress}%)</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 text-red-700">
-                        <div className="flex justify-center gap-3">
-                          <Camera size={18} />
-                          <Upload size={18} />
-                        </div>
-                        <p className="text-xs font-bold">Chụp ảnh / Tải lên Biên bản xác nhận tai nạn</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {accidentDocs.length > 0 && (
-                    <div className="space-y-1.5">
-                      {accidentDocs.map((doc, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-white rounded-xl px-3 py-2 text-[10px] border border-red-200">
-                          <div className="flex items-center gap-2 overflow-hidden mr-2">
-                            <FileText size={14} className="text-red-600 shrink-0" />
-                            <span className="font-bold text-red-950 truncate">{doc.name}</span>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => setAccidentDocs([])}
-                            className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              )}
 
-              {/* 4. Conditional: Inpatient (Bắt buộc nếu treatmentType === NoiTru) */}
-              {treatmentType === "NoiTru" && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3">
-                  <div>
-                    <h4 className="text-xs font-black text-emerald-950 flex items-center justify-between">
-                      <span>4. Giấy ra viện + tóm tắt bệnh án * (Bắt buộc)</span>
-                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Nội trú</span>
-                    </h4>
-                    <p className="text-[9px] text-emerald-800 mt-0.5">Yêu cầu đính kèm Giấy ra viện có mộc của bệnh viện điều trị và Bảng kê tóm tắt bệnh án phẫu thuật/điều trị nội trú.</p>
-                  </div>
-
-                  <div 
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, "release")}
-                    className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
-                    onClick={() => triggerMockUpload("release")}
+                {/* Text link to view full document */}
+                <div className="pl-13">
+                  <button
+                    type="button"
+                    onClick={() => setShowGycPreview(true)}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 underline flex items-center gap-1 cursor-pointer"
                   >
-                    {isUploading === "release" ? (
-                      <div className="space-y-2 py-2">
-                        <p className="text-xs font-bold text-emerald-700 animate-pulse">Đang tải hồ sơ ra viện ({uploadProgress}%)</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 text-emerald-700">
-                        <div className="flex justify-center gap-3">
-                          <Camera size={18} />
-                          <Upload size={18} />
-                        </div>
-                        <p className="text-xs font-bold">Chụp ảnh / Tải Giấy ra viện + Tóm tắt bệnh án</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {hospitalReleaseDocs.length > 0 && (
-                    <div className="space-y-1.5">
-                      {hospitalReleaseDocs.map((doc, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-white rounded-xl px-3 py-2 text-[10px] border border-emerald-200">
-                          <div className="flex items-center gap-2 overflow-hidden mr-2">
-                            <FileText size={14} className="text-emerald-600 shrink-0" />
-                            <span className="font-bold text-emerald-950 truncate">{doc.name}</span>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => setHospitalReleaseDocs([])}
-                            className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    <span>Xem toàn bộ giấy yêu cầu bồi thường</span>
+                    <ArrowRight size={13} className="inline" />
+                  </button>
                 </div>
-              )}
 
-              {/* 5. Conditional: Dependent Authorization (Bắt buộc nếu đối tượng được khai hộ là Người phụ thuộc) */}
-              {(isCorporateMode ? currentEmployee?.isDependent : selectedCard?.relationship !== "Bản thân") && (
-                <div className="bg-amber-50 border border-amber-250 rounded-2xl p-4 shadow-sm space-y-3">
-                  <div>
-                    <h4 className="text-xs font-black text-amber-900 flex items-center justify-between">
-                      <span>5. Giấy ủy quyền bồi thường hộ * (Bắt buộc)</span>
-                      <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Người phụ thuộc</span>
-                    </h4>
-                    <p className="text-[9px] text-amber-800 mt-0.5">Để đảm bảo tính pháp lý, bạn cần tải lên bản Chụp Giấy ủy quyền bồi thường có chữ ký xác nhận của nhân viên chính ({(selectedCard as any)?.bankOwner}).</p>
-                  </div>
-
-                  <div 
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, "auth")}
-                    className="border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-4 text-center cursor-pointer bg-white transition-all"
-                    onClick={() => triggerMockUpload("auth")}
-                  >
-                    {isUploading === "auth" ? (
-                      <div className="space-y-2 py-2">
-                        <p className="text-xs font-bold text-amber-800 animate-pulse">Đang tải giấy ủy quyền ({uploadProgress}%)</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 text-amber-800">
-                        <div className="flex justify-center gap-3">
-                          <Camera size={18} />
-                          <Upload size={18} />
-                        </div>
-                        <p className="text-xs font-bold">Chụp ảnh / Tải lên Giấy ủy quyền bồi thường hộ</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {authDocs.length > 0 && (
-                    <div className="space-y-1.5">
-                      {authDocs.map((doc, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-white rounded-xl px-3 py-2 text-[10px] border border-amber-200">
-                          <div className="flex items-center gap-2 overflow-hidden mr-2">
-                            <FileText size={14} className="text-amber-600 shrink-0" />
-                            <span className="font-bold text-amber-950 truncate">{doc.name}</span>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => setAuthDocs([])}
-                            className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {/* Confirmation Checkbox */}
+                <div className="pl-13 pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      disabled={!hasReadGyc}
+                      onChange={(e) => {
+                        if (!hasReadGyc) {
+                          alert("Vui lòng bấm 'Xem toàn bộ giấy yêu cầu bồi thường' và đọc hết văn bản để có thể tick vào xác nhận.");
+                          return;
+                        }
+                        setAgreeTerms(e.target.checked);
+                      }}
+                      className={`mt-0.5 rounded border-slate-300 h-4.5 w-4.5 shrink-0 transition-all ${
+                        hasReadGyc 
+                          ? "text-blue-600 focus:ring-blue-100 cursor-pointer font-bold" 
+                          : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300"
+                      }`}
+                    />
+                    <span className={`text-[10px] font-bold leading-normal ${hasReadGyc ? "text-slate-700" : "text-slate-400"}`}>
+                      Tôi xác nhận đã đọc, hiểu rõ và đồng ý với tất cả các thông tin trong Giấy yêu cầu bồi thường.
+                      {!hasReadGyc && (
+                        <span className="block text-[9px] font-medium text-amber-600 mt-1">
+                          ⚠️ Vui lòng mở và đọc hết văn bản để mở khóa xác nhận.
+                        </span>
+                      )}
+                    </span>
+                  </label>
                 </div>
-              )}
-
-              {/* Commit checkbox and Digital Signature Methods */}
-              <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
-                <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={agreeTerms}
-                    onChange={(e) => setAgreeTerms(e.target.checked)}
-                    className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-100 h-4.5 w-4.5 shrink-0"
-                  />
-                  <span className="text-[10px] text-slate-500 font-bold leading-normal">
-                    Tôi (Đại diện phòng HR Doanh nghiệp) cam kết dữ liệu định danh, chứng từ cung cấp trên đây là hoàn toàn đúng sự thật & đồng ý với các{" "}
-                    <button
-                      type="button"
-                      onClick={() => setShowTermsSheet(true)}
-                      className="text-blue-600 font-extrabold hover:underline cursor-pointer inline-block"
-                    >
-                      Điều khoản cam kết của PTI CARE
-                    </button>.
-                  </span>
-                </label>
 
                 {/* Secure Authentication selection */}
                 <div className="border-t border-slate-100/60 pt-3.5 space-y-2">
@@ -1730,122 +2180,369 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
         )}
       </AnimatePresence>
 
-      {/* Security Verification Overlay for Face ID and OTP SMS */}
+      {/* GYC Preview Document Sheet Overlay */}
       <AnimatePresence>
-        {showVerificationOverlay && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-6 text-white"
-          >
+        {showGycPreview && (
+          <>
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-[280px] bg-slate-900/85 border border-white/15 rounded-3xl p-6 text-center space-y-4 shadow-2xl"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowGycPreview(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-55 cursor-pointer"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 max-h-[85%] bg-white rounded-t-[32px] shadow-2xl z-55 flex flex-col overflow-hidden pb-6 border-t border-slate-150"
             >
-              {isVerifying ? (
-                <div className="space-y-4">
-                  {verificationMethod === "FaceID" ? (
-                    <div className="relative w-16 h-16 mx-auto rounded-full border border-white/20 bg-white/5 flex items-center justify-center overflow-hidden">
-                      <motion.div 
-                        className="absolute left-0 w-full h-0.5 bg-blue-400 shadow-md shadow-blue-400/50"
-                        animate={{ top: ["5%", "95%", "5%"] }}
-                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                      />
-                      <Fingerprint size={32} className="text-blue-400 animate-pulse" />
+              <div className="w-full flex justify-center py-3">
+                <div className="w-10 h-1 bg-slate-200 rounded-full" />
+              </div>
+
+              <div className="px-6 pb-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="text-left">
+                  <span className="text-[9px] font-black tracking-widest text-blue-600 uppercase font-mono">TỔNG CÔNG TY CỔ PHẦN BẢO HIỂM BƯU ĐIỆN (PTI)</span>
+                  <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-tight">
+                    📄 GIẤY YÊU CẦU BỒI THƯỜNG BẢO HIỂM
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGycPreview(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div 
+                onScroll={(e) => {
+                  const target = e.currentTarget;
+                  if (target.scrollHeight - target.scrollTop <= target.clientHeight + 35) {
+                    setHasReadGyc(true);
+                  }
+                }}
+                className="flex-1 overflow-y-auto px-6 py-5 space-y-5"
+              >
+                {/* Introduction */}
+                <div className="text-center pb-2 border-b border-dashed border-slate-150">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">GIẤY YÊU CẦU BỒI THƯỜNG BẢO HIỂM SỨC KHỎE CON NGƯỜI</p>
+                  <p className="text-[8px] text-slate-400 font-mono">Mã hồ sơ: CLM-{(selectedCard?.cardNumber || "PTI").substring(4)}-{new Date().getFullYear()}</p>
+                </div>
+
+                {/* Section 1: Thẻ bảo hiểm & Người yêu cầu */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                    I. THÔNG TIN KHÁCH HÀNG & THẺ BẢO HIỂM
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-150/70 text-[10px] text-slate-600 font-semibold">
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Người được bảo hiểm chính</p>
+                      <p className="font-extrabold text-slate-800">{selectedCard?.name || "N/A"}</p>
                     </div>
-                  ) : (
-                    <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-blue-400 animate-spin mx-auto" />
-                  )}
-                  
-                  <p className="text-xs font-bold text-white tracking-tight">
-                    {verificationMethod === "FaceID" ? "Đang quét khuôn mặt HR..." : "Đang gửi mã xác thực SMS..."}
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Số thẻ bảo hiểm (ID CARD)</p>
+                      <p className="font-mono font-extrabold text-blue-700">{selectedCard?.cardNumber || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Quan hệ với nhân viên</p>
+                      <p className="text-slate-800">{selectedCard?.relationship || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Đơn vị công tác</p>
+                      <p className="text-slate-800">{isCorporateMode ? "FPT SOFTWARE (Doanh nghiệp)" : "Cá nhân & Gia đình"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Chi tiết sự kiện điều trị */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                    II. THÔNG TIN SỰ KIỆN BẢO HIỂM & ĐIỀU TRỊ
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-150/70 text-[10px] text-slate-600 font-semibold">
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Cơ sở y tế / Bệnh viện điều trị</p>
+                      <p className="font-extrabold text-slate-800">{hospital || "Tự điền thủ công"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Ngày bắt đầu điều trị</p>
+                      <p className="font-extrabold text-slate-800">{treatmentDate || "Chưa xác định"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Hình thức điều trị y khoa</p>
+                      <p className="font-extrabold text-blue-600">
+                        {treatmentType === "NgoaiTru" ? "Ngoại trú (Điều trị trong ngày)" : treatmentType === "NoiTru" ? "Nội trú (Nằm viện qua đêm)" : "Phẫu thuật y khoa"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Nguyên nhân xảy ra rủi ro</p>
+                      <p className="font-extrabold text-amber-600">{cause || "Chưa chọn"}</p>
+                    </div>
+                    <div className="col-span-2 pt-1 border-t border-slate-150">
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Số tiền yêu cầu bồi thường bảo hiểm</p>
+                      <p className="font-mono text-xs font-black text-red-600">{amountStr ? `${amountStr} VND` : "0 VND"} <span className="text-[8px] text-slate-400 font-sans font-medium">(Đồng Việt Nam)</span></p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Người nhận thụ hưởng tài chính */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                    III. THÔNG TIN NGÂN HÀNG THỤ HƯỞNG TRỰC TIẾP
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-150/70 text-[9px] text-slate-600 font-semibold">
+                    <div className="col-span-1">
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Chủ tài khoản</p>
+                      <p className="font-extrabold text-slate-800">{bankOwner || "N/A"}</p>
+                    </div>
+                    <div className="col-span-1">
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Số tài khoản</p>
+                      <p className="font-mono font-extrabold text-slate-800">{bankAccount || "N/A"}</p>
+                    </div>
+                    <div className="col-span-1">
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">Ngân hàng</p>
+                      <p className="font-extrabold text-slate-800">{bankName || "N/A"}</p>
+                    </div>
+                    <div className="col-span-3 pt-2 border-t border-slate-150 text-[8px] text-amber-700 flex items-center gap-1">
+                      <Lock size={10} />
+                      <span>PTI chi trả trực tiếp cho NĐBH. HR công ty cam kết không can thiệp dòng tiền chi trả này.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: Danh mục chứng từ điện tử */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                    IV. HỒ SƠ CHỨNG TỪ SỐ ĐÃ ĐÍNH KÈM
+                  </h4>
+                  <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-150/70 text-[9px] text-slate-600 font-semibold">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">1. Chứng từ y tế:</span>
+                      <span className="text-slate-800">{medicalDocs.length > 0 ? `${medicalDocs.length} tệp tin (${medicalDocs.map(d => d.name).join(", ")})` : "❌ Chưa đính kèm"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">2. Chứng từ thanh toán / Phiếu thu:</span>
+                      <span className="text-slate-800">{paymentDocs.length > 0 ? `${paymentDocs.length} tệp tin (${paymentDocs.map(d => d.name).join(", ")})` : "❌ Chưa đính kèm"}</span>
+                    </div>
+                    {cause === "Tai nạn" && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">3. Biên bản tai nạn:</span>
+                        <span className="text-slate-800">{accidentDocs.length > 0 ? "✓ Đã tải" : "❌ Thiếu biên bản bắt buộc"}</span>
+                      </div>
+                    )}
+                    {treatmentType === "NoiTru" && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">4. Giấy ra viện + Tóm tắt bệnh án:</span>
+                        <span className="text-slate-800">{hospitalReleaseDocs.length > 0 ? "✓ Đã tải" : "❌ Thiếu giấy tờ ra viện"}</span>
+                      </div>
+                    )}
+                    {(isCorporateMode ? currentEmployee?.isDependent : selectedCard?.relationship !== "Bản thân") && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">5. Giấy ủy quyền bồi thường hộ:</span>
+                        <span className="text-slate-800">{authDocs.length > 0 ? "✓ Đã tải" : "❌ Thiếu giấy ủy quyền bồi thường hộ"}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Verification Box signature */}
+                <div className="border-t border-slate-100 pt-3 flex justify-between text-[10px] text-slate-500 font-bold">
+                  <div>
+                    <p className="text-center uppercase text-[8px] text-slate-400">ĐẠI DIỆN PTI CARE</p>
+                    <p className="text-center mt-6 text-[9px] font-mono text-slate-400">ELECTRONIC STAMP</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-center uppercase text-[8px] text-slate-400">KHÁCH HÀNG KÝ SỐ</p>
+                    <div className="mt-2 text-center">
+                      <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                        SECURE DIGISIGN ACTIVE
+                      </span>
+                      <p className="text-[7px] text-slate-400 font-mono mt-0.5">Xác thực: {verificationMethod || "FaceID / OTP"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                {!hasReadGyc && (
+                  <p className="text-[10px] text-center font-bold text-amber-600 animate-pulse">
+                    👇 Vui lòng cuộn tài liệu xuống dưới cùng để xác nhận đã đọc hết
                   </p>
-                  <p className="text-[10px] text-white/50 font-medium">Xác thực chứng thư số HR Admin FPT</p>
-                </div>
-              ) : verificationSuccess ? (
-                <div className="space-y-3 py-2">
-                  <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/15">
-                    <CheckCircle2 size={30} className="stroke-[2.5]" />
+                )}
+                <button
+                  type="button"
+                  disabled={!hasReadGyc}
+                  onClick={() => setShowGycPreview(false)}
+                  className={`w-full py-3 rounded-2xl text-xs font-bold shadow-md cursor-pointer text-center transition-all ${
+                    hasReadGyc 
+                      ? "bg-slate-900 hover:bg-slate-800 text-white" 
+                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                  }`}
+                >
+                  {hasReadGyc ? "Tôi đã đọc hết & Đóng" : "Vui lòng cuộn xuống dưới cùng để xác nhận"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* 4. MODAL: OCR DOCUMENT VERIFICATION AND PREVIEW */}
+      <AnimatePresence>
+        {previewDoc && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewDoc(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 overflow-hidden flex flex-col border border-slate-100 max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                    <FileText size={16} />
                   </div>
-                  <p className="text-xs font-bold text-emerald-400">Xác thực Ký số thành công!</p>
-                  <p className="text-[10px] text-white/50 font-medium">Yêu cầu bồi thường đang được khởi tạo...</p>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800">Kiểm tra & Xác nhận hồ sơ số</h3>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">OCR AI SCANNER ACTIVE</p>
+                  </div>
                 </div>
-              ) : (
-                /* OTP Verification form */
-                <div className="space-y-4 text-left">
-                  <div className="text-center space-y-1">
-                    <h4 className="text-xs font-bold text-white flex items-center justify-center gap-1.5 font-display">
-                      <Smartphone size={16} className="text-blue-400" /> Nhập Mã Xác Thực OTP
-                    </h4>
-                    <p className="text-[9px] text-white/50 font-medium">Mã OTP bảo mật được gửi đến SĐT của HR Admin (090***888)</p>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 cursor-pointer transition-colors"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="p-5 space-y-4 overflow-y-auto flex-grow text-xs">
+                {/* Meta details */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 flex justify-between items-center text-[10px]">
+                  <div>
+                    <p className="font-extrabold text-slate-700 truncate max-w-[200px]">{previewDoc.name}</p>
+                    <p className="text-[9px] text-slate-400 font-medium">Dung lượng: {previewDoc.size}</p>
+                  </div>
+                  <span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-2 py-0.5 rounded-full capitalize">
+                    {previewDoc.category === "medical" ? "Chứng từ y tế" : previewDoc.category === "payment" ? "Chứng từ thanh toán" : "Giấy tờ bổ sung"}
+                  </span>
+                </div>
+
+                {/* Mock image with a moving scanner bar */}
+                <div className="relative border border-slate-200 rounded-2xl overflow-hidden bg-slate-900 h-44 flex items-center justify-center">
+                  {/* Moving glowing line to simulate OCR scan */}
+                  <motion.div
+                    animate={{ y: [-80, 80] }}
+                    transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
+                    className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-[0_0_10px_#60a5fa] z-10"
+                  />
+
+                  {/* Visual design representing standard hospital invoice / document */}
+                  <div className="absolute inset-0 opacity-20 bg-radial-gradient from-blue-500/20 to-transparent pointer-events-none" />
+                  <div className="text-white space-y-2 text-center p-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-blue-400">
+                      <Sparkles size={24} className="animate-pulse" />
+                    </div>
+                    <p className="text-[10px] font-bold tracking-widest text-slate-400">PREVIEWING DOCUMENT IMAGE</p>
+                    <p className="text-[9px] text-slate-500 font-mono">HASH: SHA256-49C3A...91D2</p>
                   </div>
 
-                  <div className="flex justify-center gap-2 py-2">
-                    {[0, 1, 2, 3, 4, 5].map((idx) => (
-                      <input
-                        key={idx}
-                        id={`otp-input-${idx}`}
-                        type="text"
-                        maxLength={1}
-                        value={otpCode[idx]}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          const newOtp = [...otpCode];
-                          newOtp[idx] = val;
-                          setOtpCode(newOtp);
-                          
-                          if (val && idx < 5) {
-                            document.getElementById(`otp-input-${idx + 1}`)?.focus();
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Backspace" && !otpCode[idx] && idx > 0) {
-                            document.getElementById(`otp-input-${idx - 1}`)?.focus();
-                          }
-                        }}
-                        className="w-8 h-10 rounded-xl bg-white/10 border border-white/20 text-center text-white font-bold text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                      />
-                    ))}
+                  {/* Floating OCR status badge */}
+                  <div className="absolute top-3 left-3 bg-blue-500/90 text-white text-[8px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
+                    <Zap size={10} className="animate-bounce" />
+                    <span>AI TRÍCH XUẤT</span>
+                  </div>
+                </div>
+
+                {/* Simulated OCR Recognized Data */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-black">
+                    <Zap size={14} className="text-blue-500" />
+                    <span>Dữ liệu hóa đơn nhận dạng tự động:</span>
                   </div>
 
-                  <div className="flex gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowVerificationOverlay(false)}
-                      className="flex-1 bg-white/5 border border-white/10 text-white/80 py-2 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-white/10 transition-colors"
-                    >
-                      Hủy
-                    </button>
+                  <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100/60 space-y-1.5 text-[10px]">
+                    <div className="flex justify-between py-1 border-b border-blue-100/30">
+                      <span className="text-slate-500">Đơn vị phát hành:</span>
+                      <span className="font-bold text-slate-800">
+                        {hospital || "Bệnh viện Đa khoa Tâm Anh"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-blue-100/30">
+                      <span className="text-slate-500">Mã số thuế liên kết:</span>
+                      <span className="font-mono font-bold text-slate-800">0108345678-002</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-blue-100/30">
+                      <span className="text-slate-500">Số hóa đơn / Hợp đồng mẫu:</span>
+                      <span className="font-mono font-bold text-slate-800">E-INV-00412A</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-blue-100/30">
+                      <span className="text-slate-500">Ngày hóa đơn:</span>
+                      <span className="font-bold text-slate-800">{treatmentDate || "14/07/2026"}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5">
+                      <span className="font-bold text-blue-900">Tổng cộng thanh toán (OCR):</span>
+                      <div className="text-right">
+                        <span className="font-mono font-black text-xs text-red-600 block">3.250.000 VND</span>
+                        <p className="text-[8px] text-slate-400 font-medium">Bảo hiểm tạm tính: 100%</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {previewDoc.category === "payment" && (
                     <button
                       type="button"
                       onClick={() => {
-                        if (otpCode.join("").length < 6) {
-                          alert("Vui lòng nhập đầy đủ 6 chữ số OTP.");
-                          return;
-                        }
-                        setIsVerifying(true);
-                        setTimeout(() => {
-                          setIsVerifying(false);
-                          setVerificationSuccess(true);
-                          setTimeout(() => {
-                            executeFinalSubmission();
-                          }, 1000);
-                        }, 1200);
+                        setAmountStr("3250000");
+                        setPreviewDoc(null);
                       }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl text-[10px] font-bold"
+                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
                     >
-                      Xác thực
+                      <CheckCircle2 size={14} />
+                      <span>Áp dụng Số tiền 3.250.000đ vào Hồ sơ bồi thường</span>
                     </button>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Action Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Update confirmed docs list
+                    if (!confirmedDocs.includes(previewDoc.name)) {
+                      setConfirmedDocs([...confirmedDocs, previewDoc.name]);
+                    }
+                    setPreviewDoc(null);
+                  }}
+                  className="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-xs font-bold shadow-md cursor-pointer text-center"
+                >
+                  Xác nhận hồ sơ hợp lệ & Đóng
+                </button>
+              </div>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
   );
 }
+

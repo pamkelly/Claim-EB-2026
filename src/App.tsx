@@ -4,7 +4,7 @@ import {
   CreditCard, Shield, Settings, Info, Search, HelpCircle, LogOut, 
   ArrowUpRight, Check, AlertCircle, FileText, ChevronRight, X, Clock, 
   PlusCircle, RefreshCw, CheckCircle2, ChevronDown, CheckCircle,
-  ChevronLeft, Users
+  ChevronLeft, Users, ArrowRight, Fingerprint, Smartphone, Lock
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -77,6 +77,22 @@ export default function App() {
   const [supplementingDocType, setSupplementingDocType] = useState<"medical" | "payment" | null>(null);
   const [supplementingProgress, setSupplementingProgress] = useState(0);
   const [addedDocs, setAddedDocs] = useState<{ name: string; size: string; type: string }[]>([]);
+
+  // POST-SUBMIT VERIFICATION STATES
+  const [verifyingClaim, setVerifyingClaim] = useState<ClaimRequest | null>(null);
+  const [verificationStage, setVerificationStage] = useState<"face" | "otp" | "success" | null>(null);
+  const [otpVerifyCode, setOtpVerifyCode] = useState(["", "", "", "", "", ""]);
+  const [isVerifyingState, setIsVerifyingState] = useState(false);
+  const [benefitTab, setBenefitTab] = useState<"naitru" | "ngoaitru" | "nhakhoa" | "thaisan">("naitru");
+
+  useEffect(() => {
+    if (verificationStage === "face" && isVerifyingState) {
+      const timer = setTimeout(() => {
+        setVerificationStage("success");
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [verificationStage, isVerifyingState]);
 
   // Load claims from local storage or set defaults
   useEffect(() => {
@@ -270,13 +286,13 @@ export default function App() {
                   }}
                   onSubmitSuccess={(newClaim) => {
                     handleAddNewClaim(newClaim);
+                    setVerifyingClaim(newClaim);
+                    setVerificationStage("face");
+                    setIsVerifyingState(true);
+                    setOtpVerifyCode(["", "", "", "", "", ""]);
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
-                    if (user.isCorporate) {
-                      setActiveTab("home");
-                    } else {
-                      setActiveTab("account");
-                    }
+                    setActiveTab("home");
                   }}
                 />
               </motion.div>
@@ -303,6 +319,162 @@ export default function App() {
                 card={selectedCardForModal}
                 onClose={() => setSelectedCardForModal(null)}
               />
+            )}
+
+            {verificationStage && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-5 text-white"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="w-full max-w-[290px] bg-slate-900/90 border border-white/15 rounded-[32px] p-6 text-center space-y-5 shadow-2xl relative overflow-hidden"
+                >
+                  {/* Subtle ambient light source */}
+                  <div className="absolute -right-12 -top-12 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+
+                  {verificationStage === "face" && (
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase font-mono">PTI SECURE SIGN</span>
+                        <h3 className="text-sm font-black text-white uppercase tracking-tight mt-0.5">XÁC THỰC KHUÔN MẶT</h3>
+                        <p className="text-[10px] text-white/50 font-medium">Bảo mật sinh trắc học Face ID</p>
+                      </div>
+
+                      {/* Animated FaceID scanning frame */}
+                      <div className="relative w-24 h-24 mx-auto rounded-3xl border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shadow-inner">
+                        <motion.div 
+                          className="absolute left-0 w-full h-0.5 bg-blue-400 shadow-md shadow-blue-400/80"
+                          animate={{ top: ["5%", "95%", "5%"] }}
+                          transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                        />
+                        <Fingerprint size={48} className="text-blue-400 animate-pulse" />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-bold text-white tracking-tight flex items-center justify-center gap-1.5">
+                          <RefreshCw size={12} className="animate-spin text-blue-400" />
+                          Đang quét khuôn mặt...
+                        </p>
+                        <p className="text-[9px] text-white/45 max-w-[220px] mx-auto leading-relaxed">
+                          Hệ thống đang đối khớp khuôn mặt với cơ sở dữ liệu quốc gia dân cư để ký số chứng thư bảo hiểm PTI Care.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setVerificationStage("otp")}
+                        className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-all"
+                      >
+                        Xác thực bằng mã SMS OTP
+                      </button>
+                    </div>
+                  )}
+
+                  {verificationStage === "otp" && (
+                    <div className="space-y-4 text-left">
+                      <div className="text-center space-y-1">
+                        <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase font-mono">PTI SECURE SIGN</span>
+                        <h4 className="text-sm font-black text-white flex items-center justify-center gap-1.5 uppercase">
+                          <Smartphone size={16} className="text-blue-400" /> NHẬP MÃ XÁC THỰC OTP
+                        </h4>
+                        <p className="text-[9px] text-white/50 font-medium max-w-[210px] mx-auto">
+                          Mã xác thực bảo mật OTP đã được gửi về số điện thoại đăng ký của bạn (090***888).
+                        </p>
+                      </div>
+
+                      <div className="flex justify-center gap-1.5 py-1">
+                        {[0, 1, 2, 3, 4, 5].map((idx) => (
+                          <input
+                            key={idx}
+                            id={`verify-otp-input-${idx}`}
+                            type="text"
+                            maxLength={1}
+                            value={otpVerifyCode[idx] || ""}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              const newOtp = [...otpVerifyCode];
+                              newOtp[idx] = val;
+                              setOtpVerifyCode(newOtp);
+                              
+                              if (val && idx < 5) {
+                                document.getElementById(`verify-otp-input-${idx + 1}`)?.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Backspace" && !otpVerifyCode[idx] && idx > 0) {
+                                document.getElementById(`verify-otp-input-${idx - 1}`)?.focus();
+                              }
+                            }}
+                            className="w-8 h-10 rounded-xl bg-white/10 border border-white/20 text-center text-white font-bold text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsVerifyingState(false);
+                            setVerificationStage(null);
+                          }}
+                          className="flex-1 bg-white/5 border border-white/10 text-white/80 py-2 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-white/10 transition-colors"
+                        >
+                          Hủy bỏ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (otpVerifyCode.join("").length < 6) {
+                              alert("Vui lòng nhập đầy đủ 6 chữ số OTP.");
+                              return;
+                            }
+                            setVerificationStage("success");
+                          }}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          Xác nhận
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {verificationStage === "success" && (
+                    <div className="space-y-4 py-2">
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/15">
+                        <CheckCircle2 size={36} className="stroke-[2.5] animate-bounce" />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <p className="text-xs font-black text-emerald-400 uppercase tracking-wider">XÁC THỰC KÝ SỐ THÀNH CÔNG!</p>
+                        <p className="text-[10px] font-bold text-white">Đã nộp hồ sơ bảo hiểm hỏa tốc</p>
+                      </div>
+
+                      <div className="bg-white/5 rounded-2xl p-3 border border-white/10 text-left space-y-1 text-[9px] text-white/70">
+                        <p className="font-semibold text-white">Mã hồ sơ: CLM-{(verifyingClaim?.cardNumber || "PTI").substring(4)}-{new Date().getFullYear()}</p>
+                        <p>Người bảo hiểm: {verifyingClaim?.insuredName}</p>
+                        <p>Cơ sở y tế: {verifyingClaim?.hospital}</p>
+                        <p>Số tiền: <span className="font-mono font-bold text-red-400">{verifyingClaim?.amount.toLocaleString("vi-VN")} VND</span></p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsVerifyingState(false);
+                          setVerificationStage(null);
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider cursor-pointer shadow-md transition-colors"
+                      >
+                        Trở về Trang chủ
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -430,51 +602,44 @@ export default function App() {
                           <div 
                             key={card.id}
                             onClick={() => setSelectedCardForModal(card)}
-                            className="snap-center shrink-0 w-full bg-gradient-to-br from-blue-600/85 to-indigo-700/85 backdrop-blur-xl border border-white/25 rounded-[28px] p-5 text-white flex flex-col justify-between h-[190px] shadow-lg shadow-blue-600/15 cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-blue-500/20 active:scale-[0.99]"
+                            className="snap-center shrink-0 w-full bg-gradient-to-br from-blue-600/85 to-indigo-700/85 backdrop-blur-xl border border-white/25 rounded-[24px] p-4 text-white flex flex-col justify-between h-[138px] shadow-lg shadow-blue-600/15 cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-blue-500/20 active:scale-[0.99]"
                           >
                             {/* Premium Apple card light glare overlay */}
                             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 pointer-events-none" />
                             <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
 
-                            {/* Header: Bảo hiểm bưu điện PTI */}
-                            <div className="flex justify-between items-start border-b border-white/10 pb-2.5">
+                            {/* Header: Simplified */}
+                            <div className="flex justify-between items-center border-b border-white/10 pb-1.5">
                               <div className="flex items-center gap-2">
-                                <div className="p-1 bg-white/15 rounded-lg border border-white/25">
-                                  <Shield size={16} className="text-white fill-white/10" />
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-extrabold tracking-wider uppercase text-sky-200">Bảo hiểm bưu điện</span>
-                                  <span className="text-xs font-display font-black tracking-widest text-white">PTI INSURANCE</span>
+                                <div className="p-0.5 bg-white/15 rounded-md border border-white/20">
+                                  <Shield size={13} className="text-white fill-white/10" />
                                 </div>
                               </div>
-                              <span className="text-[9px] font-bold tracking-widest text-blue-100 uppercase bg-white/15 px-2 py-0.5 rounded-full border border-white/10">
-                                e-Card
-                              </span>
                             </div>
 
                             {/* Body: Người được bảo lãnh */}
-                            <div className="space-y-1 my-2">
-                              <p className="text-[9px] text-blue-200 font-extrabold uppercase tracking-wider">Người được bảo lãnh</p>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-display font-extrabold text-base tracking-wide uppercase text-white">
+                            <div className="space-y-0.5 my-1">
+                              <p className="text-[8px] text-blue-200 font-extrabold uppercase tracking-wider">Người được bảo lãnh</p>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="font-display font-extrabold text-sm tracking-wide uppercase text-white leading-none">
                                   {card.name}
                                 </h4>
-                                <span className="text-[8px] font-bold text-white uppercase tracking-wider bg-sky-500/30 border border-sky-400/30 px-1.5 py-0.5 rounded">
+                                <span className="text-[8px] font-bold text-white uppercase tracking-wider bg-sky-500/30 border border-sky-400/30 px-1 py-0.2 rounded leading-none">
                                   {card.relationship}
                                 </span>
                               </div>
                             </div>
 
                             {/* Footer: Mã thẻ */}
-                            <div className="flex justify-between items-end border-t border-white/10 pt-2.5">
-                              <div className="space-y-1">
-                                <p className="text-[9px] text-blue-200 font-extrabold uppercase tracking-wider">Mã số thẻ</p>
-                                <p className="text-xs font-mono font-bold tracking-widest bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 inline-block">{card.cardNumber}</p>
+                            <div className="flex justify-between items-center border-t border-white/10 pt-1.5">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[8px] text-blue-200 font-extrabold uppercase tracking-wider">Mã số thẻ:</p>
+                                <p className="text-[10px] font-mono font-bold tracking-widest bg-white/10 px-2 py-0.5 rounded border border-white/10 inline-block leading-none">{card.cardNumber}</p>
                               </div>
 
                               {/* Scanning QR visual trigger */}
-                              <div className="bg-white/95 backdrop-blur-sm p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0 border border-white/20 hover:scale-105 active:scale-95 transition-all">
-                                <svg className="w-6 h-6 text-slate-900" viewBox="0 0 100 100" fill="currentColor">
+                              <div className="bg-white/95 backdrop-blur-sm p-1 rounded-lg shadow-md flex items-center justify-center shrink-0 border border-white/20 hover:scale-105 active:scale-95 transition-all">
+                                <svg className="w-4 h-4 text-slate-900" viewBox="0 0 100 100" fill="currentColor">
                                   <path d="M10,10 h20 v20 h-20 z M15,15 h10 v10 h-10 z M10,70 h20 v20 h-20 z M15,75 h10 v10 h-10 z M70,10 h20 v20 h-20 z M75,15 h10 v10 h-10 z M45,45 h10 v10 h-10 z" />
                                 </svg>
                               </div>
@@ -489,44 +654,28 @@ export default function App() {
                         <button 
                           key={idx} 
                           onClick={() => scrollToIndex(idx)}
-                          className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${cardIndex === idx ? "w-5 bg-blue-600" : "w-1.5 bg-slate-300"}`} 
+                          className={`h-1 rounded-full transition-all duration-300 cursor-pointer ${cardIndex === idx ? "w-4 bg-blue-600" : "w-1 bg-slate-300"}`} 
                         />
                       ))}
                     </div>
                   </div>
 
-                  {/* Core Quick Actions Grid */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      onClick={() => setCurrentQuickAction("payment")}
-                      className="glass-panel hover:bg-white border border-white/60 p-3.5 rounded-3xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm group-hover:scale-105 transition-transform">
-                        <CreditCard size={18} />
+                  {/* Core Highlight Quick Action: Tạo yêu cầu bồi thường */}
+                  <button
+                    onClick={() => setCurrentWizard(true)}
+                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-4 rounded-3xl shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/15 transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white shadow-inner">
+                        <PlusCircle size={20} className="stroke-[2.5]" />
                       </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Đóng phí bảo hiểm</span>
-                    </button>
-
-                    <button
-                      onClick={() => setCurrentQuickAction("profile")}
-                      className="glass-panel hover:bg-white border border-white/60 p-3.5 rounded-3xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm group-hover:scale-105 transition-transform">
-                        <Settings size={18} />
+                      <div className="text-left">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-100/90 leading-tight">Dịch vụ trực tuyến hỏa tốc</span>
+                        <h4 className="text-sm font-black tracking-tight mt-0.5">TẠO YÊU CẦU BỒI THƯỜNG</h4>
                       </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Điều chỉnh thông tin</span>
-                    </button>
-
-                    <button
-                      onClick={() => setCurrentWizard(true)}
-                      className="glass-panel hover:bg-white border border-white/60 p-3.5 rounded-3xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group"
-                    >
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-105 transition-transform">
-                        <PlusCircle size={18} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Tạo Yêu cầu quyền lợi</span>
-                    </button>
-                  </div>
+                    </div>
+                    <ArrowRight size={18} className="text-white group-hover:translate-x-1 transition-transform stroke-[2.5]" />
+                  </button>
 
 
 
@@ -539,7 +688,7 @@ export default function App() {
 
                     {/* Filter Pills */}
                     <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-                      {(["Tất cả", "Nháp", "Chờ duyệt", "Bổ sung chứng từ", "Đã thanh toán", "Bị từ chối"] as const).map((filter) => {
+                      {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Nháp", "Đã thanh toán", "Bị từ chối"] as const).map((filter) => {
                         const isSelected = homeClaimFilter === filter;
                         // Count matching claims
                         const count = claims.filter(c => {
@@ -628,10 +777,14 @@ export default function App() {
                             <div
                               key={claim.id}
                               onClick={() => setSelectedClaim(claim)}
-                              className="bg-white/80 hover:bg-white rounded-2xl p-4 border border-slate-100/80 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+                              className={`rounded-2xl p-4 border transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden ${
+                                claim.status === "YeuCauBoSung"
+                                  ? "bg-orange-50/60 border-orange-400 shadow-[0_4px_16px_rgba(249,115,22,0.12)] ring-1 ring-orange-400/30"
+                                  : "bg-white/80 hover:bg-white border-slate-100/80 shadow-sm hover:shadow-md"
+                              }`}
                             >
                               {/* Soft side gradient accent based on status */}
-                              <div className={`absolute top-0 bottom-0 left-0 w-1 ${
+                              <div className={`absolute top-0 bottom-0 left-0 w-1.5 ${
                                 claim.status === "DaDuyet" ? "bg-green-500" :
                                 claim.status === "YeuCauBoSung" ? "bg-orange-500" :
                                 claim.status === "ChoDuyet" ? "bg-amber-500" :
@@ -658,7 +811,6 @@ export default function App() {
                                   <p className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
                                     🏢 {claim.hospital || "Chưa chọn cơ sở y tế"}
                                   </p>
-                                  <p className="text-[9px] text-slate-400 font-mono">💳 Số thẻ: {claim.cardNumber || "N/A"}</p>
                                 </div>
 
                                 <div className="text-right flex flex-col justify-between items-end h-full">
@@ -679,11 +831,11 @@ export default function App() {
 
                               {/* Interactive alert prompt inside card for supplement action */}
                               {claim.status === "YeuCauBoSung" && (
-                                <div className="mt-2.5 pt-2 border-t border-orange-100/50 flex items-center justify-between text-[9px] text-orange-600 font-bold pl-1 animate-pulse">
-                                  <span className="flex items-center gap-1">
-                                    <AlertCircle size={10} /> Chạm để bổ sung chứng từ ngay
+                                <div className="mt-2.5 pt-2 border-t border-orange-200 flex items-center justify-between text-[9px] text-orange-600 font-extrabold pl-1">
+                                  <span className="flex items-center gap-1 text-orange-600">
+                                    <AlertCircle size={10} className="animate-bounce" /> HÀNH ĐỘNG KHẨN: Click để bổ sung chứng từ ngay
                                   </span>
-                                  <ChevronRight size={12} />
+                                  <ChevronRight size={12} className="text-orange-500" />
                                 </div>
                               )}
                             </div>
@@ -770,6 +922,29 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Quick Shortcuts (Moved from Home Screen) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setCurrentQuickAction("payment")}
+                      className="glass-panel bg-white/40 hover:bg-white border border-white/60 p-3 rounded-2xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm group-hover:scale-105 transition-transform">
+                        <CreditCard size={15} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Đóng phí bảo hiểm</span>
+                    </button>
+
+                    <button
+                      onClick={() => setCurrentQuickAction("profile")}
+                      className="glass-panel bg-white/40 hover:bg-white border border-white/60 p-3 rounded-2xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm group-hover:scale-105 transition-transform">
+                        <Settings size={15} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Điều chỉnh thông tin</span>
+                    </button>
+                  </div>
+
                   {/* Claims List Section */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-end px-1">
@@ -800,7 +975,11 @@ export default function App() {
                           <div
                             key={claim.id}
                             onClick={() => setSelectedClaim(claim)}
-                            className="bg-white/60 hover:bg-white rounded-2xl p-4 border border-slate-100 shadow-sm transition-all cursor-pointer flex flex-col justify-between"
+                            className={`rounded-2xl p-4 border transition-all cursor-pointer flex flex-col justify-between ${
+                              claim.status === "YeuCauBoSung"
+                                ? "bg-orange-50/60 border-orange-400 shadow-[0_4px_16px_rgba(249,115,22,0.12)] ring-1 ring-orange-400/30"
+                                : "bg-white/60 hover:bg-white border-slate-100 shadow-sm"
+                            }`}
                           >
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
@@ -828,11 +1007,11 @@ export default function App() {
 
                             {/* Extra warning message inside card for quick supplement action */}
                             {claim.status === "YeuCauBoSung" && (
-                              <div className="mt-2.5 pt-2 border-t border-orange-100/50 flex items-center justify-between text-[9px] text-orange-600 font-bold">
-                                <span className="flex items-center gap-1">
-                                  <AlertCircle size={10} /> Ấn để nộp bổ sung ngay
+                              <div className="mt-2.5 pt-2 border-t border-orange-200 flex items-center justify-between text-[9px] text-orange-600 font-extrabold">
+                                <span className="flex items-center gap-1 text-orange-600">
+                                  <AlertCircle size={10} className="animate-bounce" /> HÀNH ĐỘNG KHẨN: Click để bổ sung chứng từ ngay
                                 </span>
-                                <ChevronRight size={12} />
+                                <ChevronRight size={12} className="text-orange-500" />
                               </div>
                             )}
                           </div>
@@ -844,43 +1023,229 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* TAB 3: NEWS FEED */}
+              {/* TAB 3: LỊCH SỬ BẢO HIỂM */}
               {activeTab === "news" && (
                 <motion.div
-                  key="news-tab"
+                  key="insurance-history-tab"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-3 pb-6 space-y-4"
+                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-3 pb-6 space-y-4 animate-fadeIn"
                 >
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Tin tức & Đặc quyền PTI</h3>
+                  <div className="flex justify-between items-center px-1">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lịch sử & Quyền lợi Bảo hiểm</h3>
+                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Đang hiệu lực</span>
+                  </div>
 
-                  <div className="space-y-4">
-                    {news.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setSelectedNews(item)}
-                        className="bg-white/60 hover:bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm cursor-pointer transition-all flex flex-col"
-                      >
-                        <img 
-                          src={item.image} 
-                          alt={item.title}
-                          className="w-full h-32 object-cover"
-                        />
-                        <div className="p-4 space-y-2">
-                          <div className="flex justify-between items-center text-[9px] font-bold text-blue-600 uppercase tracking-wider">
-                            <span>{item.category}</span>
-                            <span className="text-slate-400">{item.date}</span>
-                          </div>
-                          <h4 className="text-xs font-bold text-slate-800 leading-snug font-display">
-                            {item.title}
-                          </h4>
-                          <p className="text-[10px] leading-relaxed text-slate-500 font-medium line-clamp-2">
-                            {item.summary}
-                          </p>
-                        </div>
+                  {/* 1. QUẢN LÝ HỢP ĐỒNG */}
+                  <div className="glass-panel rounded-3xl p-4 border border-white/60 shadow-sm space-y-3.5 bg-gradient-to-br from-white/80 via-white/50 to-blue-50/10">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">QUẢN LÝ HỢP ĐỒNG</span>
+                        <h4 className="text-xs font-bold text-slate-800 font-display">Hợp đồng PTI Care Cá nhân</h4>
+                        <p className="text-[10px] font-mono font-medium text-slate-500">Mã HĐ: PTI-CON-9912</p>
                       </div>
-                    ))}
+                      <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                        Đang bảo hiểm
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Ngày bắt đầu:</span>
+                        <span className="font-bold text-slate-700">01/01/2026</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Ngày kết thúc:</span>
+                        <span className="font-bold text-slate-700">31/12/2026</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => alert("Đang tải xuống Giấy chứng nhận bảo hiểm điện tử...")}
+                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-100 text-slate-700 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                      >
+                        <FileText size={11} className="text-blue-500" />
+                        Chứng nhận BH
+                      </button>
+                      <button 
+                        onClick={() => alert("Đang mở quy tắc bảo hiểm sức khỏe PTI Care...")}
+                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-100 text-slate-700 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                      >
+                        <ArrowUpRight size={11} className="text-blue-500" />
+                        Quy tắc BH
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. DANH SÁCH GÓI BẢO HIỂM */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Danh sách gói bảo hiểm hoạt động</span>
+                    <div className="space-y-2">
+                      <div className="bg-white/60 border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100/40">
+                            <Shield size={14} />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-bold text-slate-800">PTI Care Sức khỏe Vàng</h5>
+                            <p className="text-[9px] text-slate-400 font-medium">Bảo lãnh nội trú & ngoại trú cao cấp</p>
+                          </div>
+                        </div>
+                        <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Gói chính</span>
+                      </div>
+
+                      <div className="bg-white/60 border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100/40">
+                            <Sparkles size={14} />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-bold text-slate-800">Bảo hiểm Tai nạn hộ gia đình 24/7</h5>
+                            <p className="text-[9px] text-slate-400 font-medium">Mức trách nhiệm 50.000.000đ/vụ</p>
+                          </div>
+                        </div>
+                        <span className="text-[8px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Gói bổ sung</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. TRA CỨU QUYỀN LỢI TỰ ĐỘNG */}
+                  <div className="bg-white/80 border border-slate-100 rounded-3xl p-4 shadow-sm space-y-3.5">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">TRA CỨU HẠN MỨC QUYỀN LỢI</span>
+                    
+                    {/* Inner subtabs */}
+                    <div className="grid grid-cols-4 gap-1 bg-slate-100/80 p-1 rounded-xl">
+                      {[
+                        { id: "naitru", label: "Nội trú" },
+                        { id: "ngoaitru", label: "Ngoại trú" },
+                        { id: "nhakhoa", label: "Nha khoa" },
+                        { id: "thaisan", label: "Thai sản" }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setBenefitTab(t.id as any)}
+                          className={`py-1.5 rounded-lg text-[9px] font-bold text-center cursor-pointer transition-all ${
+                            benefitTab === t.id
+                              ? "bg-white text-blue-600 shadow-sm"
+                              : "text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Benefit Details Container */}
+                    <div className="space-y-3 pt-1">
+                      {benefitTab === "naitru" && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-slate-400 font-semibold">Quyền lợi Điều trị nội trú do ốm bệnh/tai nạn</p>
+                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 250,000,000đ / năm</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-blue-600 h-full rounded-full" style={{ width: "5%" }} />
+                            </div>
+                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                              <span>Đã dùng: 12,500,000đ (5%)</span>
+                              <span>Còn lại: 237,500,000đ</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
+                            <p>• <span className="font-bold text-slate-700">Tiền giường & phòng:</span> Tối đa 2.500.000đ/ngày (lên tới 60 ngày/năm)</p>
+                            <p>• <span className="font-bold text-slate-700">Đồng chi trả:</span> 100% tại bệnh viện công; 80% tại bệnh viện tư nhân/quốc tế</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {benefitTab === "ngoaitru" && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-slate-400 font-semibold">Quyền lợi Điều trị ngoại trú (Khám, thuốc men)</p>
+                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 15,000,000đ / năm</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-amber-500 h-full rounded-full" style={{ width: "16%" }} />
+                            </div>
+                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                              <span>Đã dùng: 2,400,000đ (16%)</span>
+                              <span>Còn lại: 12,600,000đ</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
+                            <p>• <span className="font-bold text-slate-700">Hạn mức / lần khám:</span> Tối đa 1.500.000đ/lần khám (tối đa 10 lần/năm)</p>
+                            <p>• <span className="font-bold text-slate-700">Thuốc theo đơn:</span> Thanh toán 100% theo hóa đơn VAT hợp lệ</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {benefitTab === "nhakhoa" && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-slate-400 font-semibold">Chăm sóc & Điều trị răng</p>
+                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 5,000,000đ / năm</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-slate-300 h-full rounded-full" style={{ width: "0%" }} />
+                            </div>
+                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                              <span>Đã dùng: 0đ (0%)</span>
+                              <span>Còn lại: 5,000,000đ</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
+                            <p>• <span className="font-bold text-slate-700">Phạm vi bảo hiểm:</span> Khám răng, cạo vôi răng, trám răng, chữa tủy răng</p>
+                            <p>• <span className="font-bold text-slate-700">Thời gian chờ:</span> Áp dụng thời gian chờ 30 ngày kể từ ngày đóng phí</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {benefitTab === "thaisan" && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] text-slate-400 font-semibold">Chăm sóc Thai sản (Sinh thường, sinh mổ)</p>
+                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 50,000,000đ / năm</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-purple-500 h-full rounded-full" style={{ width: "0%" }} />
+                            </div>
+                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                              <span>Đã dùng: 0đ (0%)</span>
+                              <span>Còn lại: 50,000,000đ (Chưa kích hoạt)</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
+                            <p>• <span className="font-bold text-slate-700">Lưu ý thời gian chờ:</span> Thai sản áp dụng thời gian chờ 270 ngày kể từ ngày kích hoạt quyền lợi bổ sung</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -957,12 +1322,12 @@ export default function App() {
             {(user.isCorporate ? [
               { id: "home", label: "Cổng HR", icon: Home },
               { id: "roster", label: "Nhân sự", icon: Users },
-              { id: "news", label: "Tin tức", icon: Newspaper },
+              { id: "news", label: "Hợp đồng BH", icon: FileText },
               { id: "chat", label: "Hỗ trợ AI", icon: MessageSquare, highlight: true }
             ] : [
               { id: "home", label: "Trang chủ", icon: Home },
               { id: "account", label: "Tài khoản", icon: UserIcon },
-              { id: "news", label: "Tin tức", icon: Newspaper },
+              { id: "news", label: "Lịch sử BH", icon: FileText },
               { 
                 id: "notif", 
                 label: "Thông báo", 

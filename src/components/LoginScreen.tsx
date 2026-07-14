@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Shield, Key, Eye, EyeOff, Check, AlertCircle, RefreshCw, Building, User } from "lucide-react";
+import { Shield, Key, Eye, EyeOff, Check, AlertCircle, RefreshCw, Building, User, Smartphone } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface LoginScreenProps {
@@ -185,35 +185,50 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
 
             {/* Premium Sliding Segment Selector for individual vs corporate login */}
-            <div className="flex bg-slate-100/80 p-1 rounded-2xl mb-3 border border-slate-200/40">
+            <div className="flex bg-slate-200/35 backdrop-blur-md p-[3px] rounded-full mb-4 border border-white/60 shadow-[0_4px_18px_rgba(15,23,42,0.03),inset_0_1px_1.5px_rgba(255,255,255,0.4)] relative">
               <button
                 type="button"
                 onClick={() => {
                   setLoginPortal("individual");
                   setLoginError("");
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`relative flex-1 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer z-10 ${
                   loginPortal === "individual"
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "text-slate-800"
                     : "text-slate-500 hover:text-slate-700"
                 }`}
               >
-                <User size={13} />
+                {loginPortal === "individual" && (
+                  <motion.div
+                    layoutId="activeLoginTab"
+                    className="absolute inset-0 bg-white rounded-full shadow-[0_3px_10px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-white/80 z-[-1]"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <User size={12} className={loginPortal === "individual" ? "text-blue-600" : "text-slate-400"} />
                 <span>Cá nhân & Gia đình</span>
               </button>
+              
               <button
                 type="button"
                 onClick={() => {
                   setLoginPortal("corporate");
                   setLoginError("");
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`relative flex-1 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer z-10 ${
                   loginPortal === "corporate"
-                    ? "bg-white text-blue-600 shadow-sm"
+                    ? "text-slate-800"
                     : "text-slate-500 hover:text-slate-700"
                 }`}
               >
-                <Building size={13} />
+                {loginPortal === "corporate" && (
+                  <motion.div
+                    layoutId="activeLoginTab"
+                    className="absolute inset-0 bg-white rounded-full shadow-[0_3px_10px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-white/80 z-[-1]"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Building size={12} className={loginPortal === "corporate" ? "text-blue-600" : "text-slate-400"} />
                 <span>Cổng Doanh nghiệp (HR)</span>
               </button>
             </div>
@@ -278,6 +293,31 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                       </div>
+                    </div>
+
+                    {/* VNeID Alternative Login Line */}
+                    <div className="pt-3.5 border-t border-slate-100/80 space-y-2">
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-slate-150"></div>
+                        <span className="flex-shrink mx-3 text-slate-400 text-[9px] font-black uppercase tracking-wider">Hoặc</span>
+                        <div className="flex-grow border-t border-slate-150"></div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSubmitting(true);
+                          setLoginError("");
+                          setTimeout(() => {
+                            setIsSubmitting(false);
+                            onLoginSuccess("Nguyễn Văn An", "001096012345", false);
+                          }, 1000);
+                        }}
+                        className="w-full bg-rose-50/50 hover:bg-rose-100/60 border border-rose-200/50 text-rose-700 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-sm"
+                      >
+                        <Smartphone size={14} className="text-rose-600 shrink-0 animate-pulse" />
+                        <span>Đăng nhập bằng ứng dụng VNeID</span>
+                      </button>
                     </div>
                   </>
                 ) : (

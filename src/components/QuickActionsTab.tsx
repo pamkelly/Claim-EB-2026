@@ -16,13 +16,23 @@ interface CardDetailModalProps {
 
 export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
   return (
-    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 z-50">
+    <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center p-5 z-50">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
         className="w-full max-w-[340px] bg-white rounded-3xl overflow-hidden shadow-2xl relative border border-slate-100"
       >
+        {/* Absolute Close X Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 bg-black/10 hover:bg-black/25 text-white rounded-full backdrop-blur-md cursor-pointer transition-all z-10"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
         <div className="bg-gradient-to-r from-blue-600 to-sky-500 p-4 text-white text-center">
           <span className="text-[9px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
             Thẻ Bảo Hiểm Điện Tử
@@ -32,7 +42,7 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
         </div>
 
         <div className="p-5 text-center space-y-4">
-          <div className="bg-slate-50 p-4 rounded-2xl inline-block border border-slate-100 shadow-inner">
+          <div className="bg-slate-50 p-4 rounded-2xl inline-block border border-slate-100 shadow-inner w-full">
             {/* Mock QR Code representation with canvas lookalike */}
             <div className="w-40 h-40 bg-white p-2.5 rounded-xl flex flex-col justify-between items-center border border-slate-200 mx-auto">
               <div className="w-full flex-grow bg-slate-900 rounded-lg flex flex-col justify-center items-center relative overflow-hidden">
@@ -49,6 +59,11 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
               </div>
               <span className="text-[8px] font-bold text-slate-400 font-mono tracking-widest mt-1.5">PTI SCAN CARD FOR DIRECT BILLING</span>
             </div>
+
+            {/* Vietnamese instruction line under QR code */}
+            <p className="text-[10px] text-blue-600 font-bold leading-normal mt-3 max-w-[240px] mx-auto text-center">
+              👉 Đưa mã này tại quầy cơ sở y tế liên kết để định danh và bảo lãnh viện phí
+            </p>
           </div>
 
           <div className="text-left space-y-2 text-xs border-t border-slate-100 pt-3">
@@ -76,7 +91,7 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
             onClick={onClose}
             className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-2.5 rounded-2xl text-xs font-semibold shadow-md shadow-blue-500/10 cursor-pointer"
           >
-            Đóng thẻ bảo hiểm
+            Đóng
           </button>
         </div>
       </motion.div>
@@ -503,12 +518,21 @@ export default function QuickActionsTab({ actionType, onBack, primaryCccd }: Qui
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-semibold shadow-lg shadow-blue-500/10 transition-all cursor-pointer"
-              >
-                Lưu thay đổi thông tin
-              </button>
+              <div className="flex gap-2.5 pt-1.5">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-600 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-colors text-center"
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="submit"
+                  className="flex-[2] bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-semibold shadow-lg shadow-blue-500/10 transition-all cursor-pointer"
+                >
+                  Lưu thay đổi thông tin
+                </button>
+              </div>
             </form>
           </motion.div>
         )}
