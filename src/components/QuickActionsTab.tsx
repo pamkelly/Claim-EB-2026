@@ -12,9 +12,10 @@ import { InsuranceCard } from "../types";
 interface CardDetailModalProps {
   card: InsuranceCard;
   onClose: () => void;
+  onCreateClaim?: (card: InsuranceCard) => void;
 }
 
-export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
+export function CardDetailModal({ card, onClose, onCreateClaim }: CardDetailModalProps) {
   return (
     <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center p-5 z-50">
       <motion.div 
@@ -81,15 +82,33 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-semibold">Tình trạng:</span>
-              <span className="font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded text-[10px]">Đang hiệu lực</span>
+              <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                card.status === "HieuLuc" ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
+              }`}>
+                {card.status === "HieuLuc" ? "Đang hiệu lực" : "Hết hạn"}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2">
+          {card.status === "HieuLuc" && (
+            <button
+              onClick={() => {
+                onClose();
+                if (onCreateClaim) {
+                  onCreateClaim(card);
+                }
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-2.5 rounded-2xl text-xs font-bold shadow-md shadow-blue-500/15 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Yêu cầu bồi thường thẻ này</span>
+              <ArrowRight size={13} className="stroke-[2.5]" />
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-2.5 rounded-2xl text-xs font-semibold shadow-md shadow-blue-500/10 cursor-pointer"
+            className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 rounded-2xl text-xs font-semibold cursor-pointer transition-all"
           >
             Đóng
           </button>
@@ -107,9 +126,18 @@ interface QuickActionsTabProps {
   actionType: "payment" | "profile";
   onBack: () => void;
   primaryCccd: string;
+  bankAccounts?: {
+    defaultBank: string;
+    defaultAccount: string;
+    extra1Bank: string;
+    extra1Account: string;
+    extra2Bank: string;
+    extra2Account: string;
+  };
+  onSaveBankAccounts?: (accounts: any) => void;
 }
 
-export default function QuickActionsTab({ actionType, onBack, primaryCccd }: QuickActionsTabProps) {
+export default function QuickActionsTab({ actionType, onBack, primaryCccd, bankAccounts, onSaveBankAccounts }: QuickActionsTabProps) {
   // PAYMENT STATES
   const [payStep, setPayStep] = useState<"form" | "confirm" | "success">("form");
   const [contractNo, setContractNo] = useState("PTI-CON-9912");
@@ -123,8 +151,12 @@ export default function QuickActionsTab({ actionType, onBack, primaryCccd }: Qui
   const [phone, setPhone] = useState("0961234345");
   const [email, setEmail] = useState("htthien20101996@gmail.com");
   const [address, setAddress] = useState("12B Lý Thường Kiệt, Hoàn Kiếm, Hà Nội");
-  const [payoutBank, setPayoutBank] = useState("Vietcombank (VCB)");
-  const [payoutAccount, setPayoutAccount] = useState("101889922233");
+  const [payoutBank, setPayoutBank] = useState(bankAccounts?.defaultBank || "Vietcombank (VCB)");
+  const [payoutAccount, setPayoutAccount] = useState(bankAccounts?.defaultAccount || "101889922233");
+  const [extra1Bank, setExtra1Bank] = useState(bankAccounts?.extra1Bank || "Techcombank (TCB)");
+  const [extra1Account, setExtra1Account] = useState(bankAccounts?.extra1Account || "1903444222115");
+  const [extra2Bank, setExtra2Bank] = useState(bankAccounts?.extra2Bank || "BIDV");
+  const [extra2Account, setExtra2Account] = useState(bankAccounts?.extra2Account || "5801000999888");
 
   const PACKAGES = [
     { id: "bronze", name: "PTI Care Phổ Thông", price: 850000, desc: "Hạn mức nội trú 40tr/năm, ngoại trú 4tr/năm" },
@@ -148,6 +180,16 @@ export default function QuickActionsTab({ actionType, onBack, primaryCccd }: Qui
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (onSaveBankAccounts) {
+      onSaveBankAccounts({
+        defaultBank: payoutBank,
+        defaultAccount: payoutAccount,
+        extra1Bank,
+        extra1Account,
+        extra2Bank,
+        extra2Account
+      });
+    }
     setProfileSuccess(true);
     setTimeout(() => {
       setProfileSuccess(false);
@@ -486,33 +528,93 @@ export default function QuickActionsTab({ actionType, onBack, primaryCccd }: Qui
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 space-y-3">
-                  <span className="block text-xs font-bold text-slate-700">Tài khoản nhận tiền bồi thường mặc định</span>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-                        Ngân hàng
-                      </label>
-                      <input
-                        type="text"
-                        value={payoutBank}
-                        onChange={(e) => setPayoutBank(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
-                        required
-                      />
+                <div className="pt-2 border-t border-slate-100 space-y-4">
+                  <div className="space-y-3">
+                    <span className="block text-xs font-bold text-slate-700">Tài khoản nhận tiền bồi thường mặc định</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Ngân hàng
+                        </label>
+                        <input
+                          type="text"
+                          value={payoutBank}
+                          onChange={(e) => setPayoutBank(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Số tài khoản
+                        </label>
+                        <input
+                          type="text"
+                          value={payoutAccount}
+                          onChange={(e) => setPayoutAccount(e.target.value.replace(/\D/g, ""))}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-800 glass-input"
+                          required
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-                        Số tài khoản
-                      </label>
-                      <input
-                        type="text"
-                        value={payoutAccount}
-                        onChange={(e) => setPayoutAccount(e.target.value.replace(/\D/g, ""))}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-800 glass-input"
-                        required
-                      />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100/60 space-y-3">
+                    <span className="block text-xs font-bold text-slate-700">Tài khoản ngân hàng nhận tiền khác 1</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Ngân hàng phụ 1
+                        </label>
+                        <input
+                          type="text"
+                          value={extra1Bank}
+                          onChange={(e) => setExtra1Bank(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Số tài khoản phụ 1
+                        </label>
+                        <input
+                          type="text"
+                          value={extra1Account}
+                          onChange={(e) => setExtra1Account(e.target.value.replace(/\D/g, ""))}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-800 glass-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100/60 space-y-3">
+                    <span className="block text-xs font-bold text-slate-700">Tài khoản ngân hàng nhận tiền khác 2</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Ngân hàng phụ 2
+                        </label>
+                        <input
+                          type="text"
+                          value={extra2Bank}
+                          onChange={(e) => setExtra2Bank(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 glass-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Số tài khoản phụ 2
+                        </label>
+                        <input
+                          type="text"
+                          value={extra2Account}
+                          onChange={(e) => setExtra2Account(e.target.value.replace(/\D/g, ""))}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-mono font-medium text-slate-800 glass-input"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

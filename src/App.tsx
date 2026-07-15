@@ -5,7 +5,7 @@ import {
   ArrowUpRight, Check, AlertCircle, FileText, ChevronRight, X, Clock, 
   PlusCircle, RefreshCw, CheckCircle2, ChevronDown, CheckCircle,
   ChevronLeft, Users, ArrowRight, Fingerprint, Smartphone, Lock,
-  Plus, Globe
+  Plus, Globe, XCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -20,6 +20,65 @@ import { InsuranceCard, ClaimRequest, NotificationItem, NewsItem } from "./types
 import { 
   SAMPLE_CARDS, SAMPLE_NEWS, SAMPLE_NOTIFICATIONS, MOCK_HISTORIC_CLAIMS 
 } from "./data";
+
+const MY_CONTRACTS = [
+  {
+    id: "con-health",
+    type: "health",
+    name: "PTI Care Sức khỏe Vàng",
+    code: "PTI-CON-9912",
+    startDate: "01/01/2026",
+    endDate: "31/12/2026",
+    premium: "12,500,000đ",
+    remainingPremium: "0đ",
+    status: "Đang hiệu lực",
+    issueStatus: "Đã phát hành",
+    paymentStatus: "Đã thanh toán 100%",
+    cardId: "card-1",
+    benefits: [
+      { id: "naitru", category: "Nội trú", desc: "Điều trị nội trú do bệnh tật / tai nạn tại hệ thống bệnh viện bảo lãnh liên kết", limit: "250,000,000đ/năm", used: "12,500,000đ (5%)", remaining: "237,500,000đ", percent: 5, color: "bg-blue-600" },
+      { id: "ngoaitru", category: "Ngoại trú", desc: "Khám bệnh ngoại trú, kê đơn thuốc Tây y tại phòng khám hoặc bệnh viện", limit: "15,000,000đ/năm", used: "2,400,000đ (16%)", remaining: "12,600,000đ", percent: 16, color: "bg-amber-500" },
+      { id: "nhakhoa", category: "Nha khoa", desc: "Chăm sóc nha khoa tổng quát, cạo vôi răng, trám răng sâu, nhổ răng bệnh lý", limit: "5,000,000đ/năm", used: "0đ (0%)", remaining: "5,000,000đ", percent: 0, color: "bg-emerald-500" }
+    ]
+  },
+  {
+    id: "con-car",
+    type: "car",
+    name: "Bảo hiểm Ô tô Vật chất PTI Auto Pro",
+    code: "PTI-CAR-8821",
+    startDate: "15/02/2026",
+    endDate: "14/02/2027",
+    premium: "18,200,000đ",
+    remainingPremium: "0đ",
+    status: "Đang hiệu lực",
+    issueStatus: "Đã phát hành",
+    paymentStatus: "Đã thanh toán 100%",
+    cardId: "card-1",
+    benefits: [
+      { id: "damdung", category: "Đâm đụng, va quẹt", desc: "Bồi thường tổn thất bộ phận hoặc toàn bộ thân vỏ xe ô tô do va chạm", limit: "850,000,000đ (100% giá trị xe)", used: "0đ (0%)", remaining: "850,000,000đ", percent: 0, color: "bg-blue-600" },
+      { id: "thuykich", category: "Thủy kích", desc: "Bảo hiểm thiệt hại động cơ do đi vào vùng ngập nước, thủy kích", limit: "Hạn mức tối đa theo xe", used: "0đ (0%)", remaining: "Đầy đủ", percent: 0, color: "bg-amber-500" },
+      { id: "cuuho", category: "Cứu hộ xe", desc: "Cứu hộ cẩu kéo miễn phí do sự cố kỹ thuật hoặc tai nạn 24/7", limit: "Không giới hạn số lần", used: "0 lần", remaining: "Tối đa 100km/lần", percent: 0, color: "bg-emerald-500" }
+    ]
+  },
+  {
+    id: "con-moto",
+    type: "moto",
+    name: "Bảo hiểm TNDS Bắt buộc Xe máy",
+    code: "PTI-MOTO-3342",
+    startDate: "10/03/2026",
+    endDate: "09/03/2027",
+    premium: "66,000đ",
+    remainingPremium: "0đ",
+    status: "Đang hiệu lực",
+    issueStatus: "Đã phát hành",
+    paymentStatus: "Đã thanh toán 100%",
+    cardId: "card-1",
+    benefits: [
+      { id: "ve_nguoi", category: "Thiệt hại về người", desc: "Bồi thường thiệt hại về thân thể, tính mạng cho bên thứ ba do xe máy gây ra", limit: "150,000,000đ/người/vụ", used: "0đ (0%)", remaining: "150,000,000đ", percent: 0, color: "bg-blue-600" },
+      { id: "ve_taisan", category: "Thiệt hại tài sản", desc: "Bồi thường thiệt hại tài sản cho bên thứ ba do xe máy gây ra", limit: "50,000,000đ/vụ", used: "0đ (0%)", remaining: "50,000,000đ", percent: 0, color: "bg-amber-500" }
+    ]
+  }
+];
 
 export default function App() {
   // USER STATES
@@ -43,6 +102,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"home" | "claims" | "contracts" | "account" | "chat">("home");
   const [currentWizard, setCurrentWizard] = useState(false);
   const [draftClaimForWizard, setDraftClaimForWizard] = useState<ClaimRequest | null>(null);
+  const [selectedCardFromEcard, setSelectedCardFromEcard] = useState<InsuranceCard | null>(null);
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [currentQuickAction, setCurrentQuickAction] = useState<"payment" | "profile" | null>(null);
 
@@ -54,6 +114,7 @@ export default function App() {
   // MOCK CAROUSEL INDEX
   const [cardIndex, setCardIndex] = useState(0);
   const [homeClaimFilter, setHomeClaimFilter] = useState<string>("Tất cả");
+  const [claimsTabFilter, setClaimsTabFilter] = useState<string>("Tất cả");
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const scrollToIndex = (index: number) => {
@@ -81,6 +142,31 @@ export default function App() {
   const [supplementingProgress, setSupplementingProgress] = useState(0);
   const [addedDocs, setAddedDocs] = useState<{ name: string; size: string; type: string }[]>([]);
 
+  // BANK ACCOUNTS STATES (Persisted in localStorage)
+  const [bankAccounts, setBankAccounts] = useState(() => {
+    const saved = localStorage.getItem("pti_bank_accounts_v1");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return {
+      defaultBank: "Vietcombank (VCB)",
+      defaultAccount: "101889922233",
+      extra1Bank: "Techcombank (TCB)",
+      extra1Account: "1903444222115",
+      extra2Bank: "BIDV",
+      extra2Account: "5801000999888"
+    };
+  });
+
+  const handleSaveBankAccounts = (updatedAccounts: any) => {
+    setBankAccounts(updatedAccounts);
+    localStorage.setItem("pti_bank_accounts_v1", JSON.stringify(updatedAccounts));
+  };
+
   // POST-SUBMIT VERIFICATION STATES
   const [verifyingClaim, setVerifyingClaim] = useState<ClaimRequest | null>(null);
   const [verificationStage, setVerificationStage] = useState<"face" | "otp" | "success" | null>(null);
@@ -88,6 +174,7 @@ export default function App() {
   const [isVerifyingState, setIsVerifyingState] = useState(false);
   const [benefitTab, setBenefitTab] = useState<"naitru" | "ngoaitru" | "nhakhoa" | "thaisan">("naitru");
   const [contractSubTab, setContractSubTab] = useState<"my-contract" | "relatives-contract">("my-contract");
+  const [selectedContractDetail, setSelectedContractDetail] = useState<any | null>(null);
 
   useEffect(() => {
     if (verificationStage === "face" && isVerifyingState) {
@@ -285,10 +372,13 @@ export default function App() {
                   isCorporateMode={user.isCorporate}
                   corporateEmployee={corporateEmployeeSelectedForWizard}
                   draftClaim={draftClaimForWizard || undefined}
+                  selectedCardFromEcard={selectedCardFromEcard || undefined}
+                  bankAccounts={bankAccounts}
                   onBack={() => {
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
                     setDraftClaimForWizard(null);
+                    setSelectedCardFromEcard(null);
                   }}
                   onSubmitSuccess={(newClaim) => {
                     handleAddNewClaim(newClaim);
@@ -299,6 +389,7 @@ export default function App() {
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
                     setDraftClaimForWizard(null);
+                    setSelectedCardFromEcard(null);
                     setActiveTab("home");
                   }}
                 />
@@ -316,6 +407,8 @@ export default function App() {
                 <QuickActionsTab 
                   actionType={currentQuickAction}
                   primaryCccd={user.cccd}
+                  bankAccounts={bankAccounts}
+                  onSaveBankAccounts={handleSaveBankAccounts}
                   onBack={() => setCurrentQuickAction(null)}
                 />
               </motion.div>
@@ -325,6 +418,10 @@ export default function App() {
               <CardDetailModal 
                 card={selectedCardForModal}
                 onClose={() => setSelectedCardForModal(null)}
+                onCreateClaim={(card) => {
+                  setSelectedCardFromEcard(card);
+                  setCurrentWizard(true);
+                }}
               />
             )}
 
@@ -699,7 +796,7 @@ export default function App() {
                     </div>
 
                     {/* Filter Pills */}
-                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+                    <div className="flex gap-1.5 overflow-x-auto pt-2 pb-3.5 scrollbar-none -mx-1 px-1 -mt-2 -mb-2 shrink-0">
                       {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Nháp", "Đã thanh toán", "Bị từ chối"] as const).map((filter) => {
                         const isSelected = homeClaimFilter === filter;
                         // Count matching claims
@@ -855,6 +952,44 @@ export default function App() {
                                       <ChevronRight size={12} className="text-orange-500" />
                                     </div>
                                   )}
+
+                                  {/* Interactive appeal button inside card for rejected claims on Home screen */}
+                                  {claim.status === "TuChoi" && (
+                                    <div className="mt-2.5 pt-2 border-t border-red-200 flex items-center justify-between text-[9px] pl-1" onClick={(e) => e.stopPropagation()}>
+                                      <span className="flex items-center gap-1 text-red-600 font-extrabold">
+                                        <AlertCircle size={10} /> Đã bị từ chối bồi thường
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          const updatedClaims = claims.map(c => {
+                                            if (c.id === claim.id) {
+                                              return { 
+                                                ...c, 
+                                                status: "ChoDuyet" as const,
+                                                date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                              };
+                                            }
+                                            return c;
+                                              });
+                                          setClaims(updatedClaims);
+                                          
+                                          const newNotif = {
+                                            id: `notif-${Math.random()}`,
+                                            title: "Đã gửi khiếu nại thành công",
+                                            content: `Yêu cầu bồi thường #${claim.id} đã được chuyển sang trạng thái chờ tái thẩm định hỏa tốc.`,
+                                            date: "Hôm nay",
+                                            read: false,
+                                            claimId: claim.id
+                                          };
+                                          setNotifications([newNotif, ...notifications]);
+                                          alert("Đã gửi đơn khiếu nại thành công! Ban giám định PTI đang tiến hành tái thẩm định hồ sơ của bạn.");
+                                        }}
+                                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-lg cursor-pointer transition-all active:scale-95 shadow-sm text-[8px] uppercase tracking-wider"
+                                      >
+                                        ⚖️ Khiếu nại hỏa tốc
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -953,23 +1088,23 @@ export default function App() {
                   </div>
 
                   {/* Filter Pills for Claims Tab */}
-                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-5 px-5">
-                    {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Nháp", "Đã hoàn tất", "Từ chối"] as const).map((filter) => {
-                      const isSelected = homeClaimFilter === filter;
+                  <div className="flex gap-1.5 overflow-x-auto pt-2 pb-3.5 scrollbar-none -mx-5 px-5 -mt-2 -mb-2 shrink-0">
+                    {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Bị từ chối", "Nháp", "Đã hoàn tất"] as const).map((filter) => {
+                      const isSelected = claimsTabFilter === filter;
                       const count = claims.filter(c => {
                         if (filter === "Tất cả") return true;
                         if (filter === "Nháp") return c.status === "Nhap";
                         if (filter === "Chờ duyệt") return c.status === "ChoDuyet";
                         if (filter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
                         if (filter === "Đã hoàn tất") return c.status === "DaDuyet";
-                        if (filter === "Từ chối") return c.status === "TuChoi";
+                        if (filter === "Bị từ chối") return c.status === "TuChoi";
                         return false;
                       }).length;
 
                       return (
                         <button
                           key={filter}
-                          onClick={() => setHomeClaimFilter(filter)}
+                          onClick={() => setClaimsTabFilter(filter)}
                           className={`px-3 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                             isSelected
                               ? "bg-slate-800 text-white shadow-sm"
@@ -991,12 +1126,12 @@ export default function App() {
                   <div className="space-y-3.5">
                     {(() => {
                       const filtered = claims.filter(c => {
-                        if (homeClaimFilter === "Tất cả") return true;
-                        if (homeClaimFilter === "Nháp") return c.status === "Nhap";
-                        if (homeClaimFilter === "Chờ duyệt") return c.status === "ChoDuyet";
-                        if (homeClaimFilter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
-                        if (homeClaimFilter === "Đã hoàn tất") return c.status === "DaDuyet";
-                        if (homeClaimFilter === "Từ chối") return c.status === "TuChoi";
+                        if (claimsTabFilter === "Tất cả") return true;
+                        if (claimsTabFilter === "Nháp") return c.status === "Nhap";
+                        if (claimsTabFilter === "Chờ duyệt") return c.status === "ChoDuyet";
+                        if (claimsTabFilter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
+                        if (claimsTabFilter === "Đã hoàn tất") return c.status === "DaDuyet";
+                        if (claimsTabFilter === "Bị từ chối") return c.status === "TuChoi";
                         return false;
                       });
 
@@ -1101,15 +1236,46 @@ export default function App() {
                                 </button>
                               )}
                               {claim.status === "TuChoi" && (
-                                <button
-                                  onClick={() => {
-                                    setDraftClaimForWizard(claim);
-                                    setCurrentWizard(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  🔄 Tạo lại yêu cầu
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const updatedClaims = claims.map(c => {
+                                        if (c.id === claim.id) {
+                                          return { 
+                                            ...c, 
+                                            status: "ChoDuyet" as const,
+                                            date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                          };
+                                        }
+                                        return c;
+                                      });
+                                      setClaims(updatedClaims);
+                                      
+                                      const newNotif = {
+                                        id: `notif-${Math.random()}`,
+                                        title: "Đã gửi khiếu nại thành công",
+                                        content: `Yêu cầu bồi thường #${claim.id} đã được chuyển sang trạng thái chờ tái thẩm định hỏa tốc.`,
+                                        date: "Hôm nay",
+                                        read: false,
+                                        claimId: claim.id
+                                      };
+                                      setNotifications([newNotif, ...notifications]);
+                                      alert("Đã gửi đơn khiếu nại thành công! Ban giám định PTI đang tiến hành tái thẩm định hồ sơ của bạn.");
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    ⚖️ Khiếu nại
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setDraftClaimForWizard(claim);
+                                      setCurrentWizard(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    🔄 Tạo lại đơn mới
+                                  </button>
+                                </>
                               )}
                               <button
                                 onClick={() => setSelectedClaim(claim)}
@@ -1161,117 +1327,63 @@ export default function App() {
                   </div>
 
                   {contractSubTab === "my-contract" ? (
-                    <div className="space-y-4">
-                      {/* Detailed Personal Contract Card */}
-                      <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-3xl p-5 shadow-lg border border-slate-800 relative overflow-hidden">
-                        <div className="absolute right-0 bottom-0 opacity-10 translate-y-1/4 translate-x-1/4">
-                          <Shield size={220} className="stroke-[1.5]" />
-                        </div>
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-1">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-blue-300">HỢP ĐỒNG CHÍNH</span>
-                            <h3 className="font-display font-black text-sm uppercase">PTI Care Sức khỏe Vàng</h3>
-                            <p className="text-[10px] font-mono font-bold text-slate-400">Số HĐ: PTI-CON-9912</p>
-                          </div>
-                          <span className="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
-                            Đang hiệu lực
-                          </span>
-                        </div>
-
-                        <div className="h-px bg-slate-800/80 my-4" />
-
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-[10px]">
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Ngày bắt đầu:</span>
-                            <span className="font-bold">01/01/2026</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Ngày kết thúc:</span>
-                            <span className="font-bold">31/12/2026</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Tổng phí bảo hiểm:</span>
-                            <span className="font-extrabold text-blue-300">12,500,000đ</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Phí còn lại cần đóng:</span>
-                            <span className="font-extrabold text-emerald-400">0đ</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Trạng thái đơn:</span>
-                            <span className="font-bold text-emerald-400">Đã phát hành</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 font-semibold block">Trạng thái thanh toán:</span>
-                            <span className="font-bold text-emerald-400">Đã thanh toán 100%</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Benefit limits checker inside contracts */}
-                      <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm space-y-4">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">HẠN MỨC QUYỀN LỢI CHI TIẾT</span>
+                    <div className="space-y-3.5">
+                      {MY_CONTRACTS.map((contract) => {
+                        let accentColor = "bg-emerald-500";
+                        let badgeLabel = "Xe máy";
+                        let badgeColor = "bg-emerald-50 text-emerald-600 border border-emerald-100";
                         
-                        <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
-                          {[
-                            { id: "naitru", label: "Nội trú" },
-                            { id: "ngoaitru", label: "Ngoại trú" },
-                            { id: "nhakhoa", label: "Nha khoa" }
-                          ].map((t) => (
-                            <button
-                              key={t.id}
-                              onClick={() => setBenefitTab(t.id as any)}
-                              className={`py-1.5 rounded-lg text-[9px] font-bold text-center cursor-pointer transition-all ${
-                                benefitTab === t.id
-                                  ? "bg-white text-blue-600 shadow-sm"
-                                  : "text-slate-500 hover:text-slate-800"
-                              }`}
-                            >
-                              {t.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Benefit Details */}
-                        <div className="space-y-3 pt-1">
-                          {benefitTab === "naitru" && (
-                            <div className="space-y-3">
-                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Điều trị nội trú do bệnh tật / tai nạn tại hệ thống bệnh viện bảo lãnh liên kết</p>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div className="bg-blue-600 h-full rounded-full" style={{ width: "5%" }} />
+                        if (contract.type === "health") {
+                          accentColor = "bg-blue-500";
+                          badgeLabel = "Sức khỏe";
+                          badgeColor = "bg-blue-50 text-blue-600 border border-blue-100";
+                        } else if (contract.type === "car") {
+                          accentColor = "bg-amber-500";
+                          badgeLabel = "Ô tô Pro";
+                          badgeColor = "bg-amber-50 text-amber-600 border border-amber-100";
+                        }
+                        
+                        return (
+                          <div 
+                            key={contract.id}
+                            onClick={() => setSelectedContractDetail(contract)}
+                            className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden cursor-pointer text-left"
+                          >
+                            <div className={`absolute top-0 bottom-0 left-0 w-1 ${accentColor}`} />
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full ${badgeColor}`}>
+                                  {badgeLabel}
+                                </span>
+                                <h4 className="text-xs font-bold text-slate-800 font-display mt-2">
+                                  {contract.name}
+                                </h4>
+                                <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: {contract.code}</p>
                               </div>
-                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                                <span>Đã dùng: 12,500,000đ (5%)</span>
-                                <span>Còn lại: 237,500,000đ</span>
-                              </div>
-                            </div>
-                          )}
-                          {benefitTab === "ngoaitru" && (
-                            <div className="space-y-3">
-                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Khám bệnh ngoại trú, kê đơn thuốc Tây y tại phòng khám hoặc bệnh viện</p>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div className="bg-amber-500 h-full rounded-full" style={{ width: "16%" }} />
-                              </div>
-                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                                <span>Đã dùng: 2,400,000đ (16%)</span>
-                                <span>Còn lại: 12,600,000đ</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
+                                  {contract.status}
+                                </span>
+                                <ChevronRight size={13} className="text-slate-400" />
                               </div>
                             </div>
-                          )}
-                          {benefitTab === "nhakhoa" && (
-                            <div className="space-y-3">
-                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Chăm sóc nha khoa tổng quát, cạo vôi răng, trám răng sâu, nhổ răng bệnh lý</p>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div className="bg-emerald-500 h-full rounded-full" style={{ width: "0%" }} />
+                            
+                            <div className="h-px bg-slate-50 my-2" />
+                            
+                            <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                              <div>
+                                <span>Tổng phí:</span> <span className="font-bold text-slate-700">{contract.premium}</span>
                               </div>
-                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                                <span>Đã dùng: 0đ (0%)</span>
-                                <span>Còn lại: 5,000,000đ</span>
+                              <div>
+                                <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">{contract.remainingPremium}</span>
+                              </div>
+                              <div>
+                                <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">{contract.paymentStatus}</span>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="space-y-3.5">
@@ -1474,7 +1586,7 @@ export default function App() {
               { id: "chat", label: "Hỗ trợ AI", icon: MessageSquare, highlight: true }
             ] : [
               { id: "home", label: "Trang chủ", icon: Home },
-              { id: "claims", label: "Bồi thường", icon: FileText },
+              { id: "claims", label: "Lịch sử", icon: FileText },
               { id: "contracts", label: "Hợp đồng BH", icon: Shield },
               { id: "account", label: "Tài khoản", icon: UserIcon },
               { id: "chat", label: "Trợ lý AI", icon: MessageSquare, highlight: true }
@@ -1779,6 +1891,79 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Rejected claim visual with Appeal "Khiếu nại" action */}
+                  {selectedClaim.status === "TuChoi" && (
+                    <div className="bg-red-50 border border-red-200/50 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 bg-red-100 text-red-600 rounded-full flex items-center justify-center shrink-0">
+                          <XCircle size={18} />
+                        </div>
+                        <div className="space-y-1 text-left">
+                          <h4 className="text-xs font-bold text-red-700">YÊU CẦU BỊ TỪ CHỐI CHI TRẢ</h4>
+                          <p className="text-[10px] leading-relaxed text-red-800 font-medium">
+                            Lý do: Chứng từ gửi lên bị trùng lặp hoặc không thuộc phạm vi bảo lãnh của điều khoản sức khỏe cơ bản.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-red-100 space-y-2.5">
+                        <p className="text-[9px] leading-relaxed text-red-700 font-medium">
+                          Nếu bạn tin rằng quyết định này chưa chính xác, bạn có thể gửi yêu cầu khiếu nại (yêu cầu tái thẩm định) kèm lý do giải trình để ban giám định PTI đánh giá lại hồ sơ hỏa tốc.
+                        </p>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              // Simulate "Khiếu nại" action
+                              const updatedClaims = claims.map(c => {
+                                if (c.id === selectedClaim.id) {
+                                  return { 
+                                    ...c, 
+                                    status: "ChoDuyet" as const, 
+                                    date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                  };
+                                }
+                                return c;
+                              });
+                              setClaims(updatedClaims);
+                              setSelectedClaim({
+                                ...selectedClaim,
+                                status: "ChoDuyet",
+                                date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                              });
+                              
+                              // Send a success notification
+                              const newNotif = {
+                                id: `notif-${Math.random()}`,
+                                title: "Đã gửi khiếu nại thành công",
+                                content: `Yêu cầu bồi thường #${selectedClaim.id} đã được chuyển sang trạng thái chờ tái thẩm định hỏa tốc.`,
+                                date: "Hôm nay",
+                                read: false,
+                                claimId: selectedClaim.id
+                              };
+                              setNotifications([newNotif, ...notifications]);
+                              alert("Đã gửi đơn khiếu nại thành công! Ban giám định PTI đang tiến hành tái thẩm định hồ sơ của bạn.");
+                            }}
+                            className="flex-grow bg-blue-600 hover:bg-blue-700 active:scale-95 text-white py-2 rounded-xl text-[10px] font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            ⚖️ Gửi đơn Khiếu nại (Tái thẩm định)
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              setSelectedClaim(null);
+                              setDraftClaimForWizard(selectedClaim);
+                              setCurrentWizard(true);
+                            }}
+                            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            🔄 Tạo lại đơn mới
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Core details list */}
                   <div className="space-y-3.5 text-xs">
                     <div className="flex justify-between border-b border-slate-50 pb-2">
@@ -1901,6 +2086,116 @@ export default function App() {
 
                 </div>
               </motion.div>
+            )}
+
+            {selectedContractDetail && (
+              <div className="absolute inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center p-5 z-50">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="w-full max-w-[340px] bg-white rounded-3xl overflow-hidden shadow-2xl relative border border-slate-100 flex flex-col max-h-[90%]"
+                >
+                  {/* Close button */}
+                  <button 
+                    onClick={() => setSelectedContractDetail(null)}
+                    className="absolute top-4 right-4 p-1.5 bg-black/10 hover:bg-black/25 text-white rounded-full backdrop-blur-md cursor-pointer transition-all z-10"
+                  >
+                    <X size={14} />
+                  </button>
+
+                  {/* Header */}
+                  <div className={`p-5 text-white text-center shrink-0 ${
+                    selectedContractDetail.type === "health" ? "bg-gradient-to-r from-blue-600 to-indigo-600" :
+                    selectedContractDetail.type === "car" ? "bg-gradient-to-r from-amber-500 to-orange-600" :
+                    "bg-gradient-to-r from-emerald-500 to-teal-600"
+                  }`}>
+                    <span className="text-[8px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-md">
+                      Chi tiết hợp đồng
+                    </span>
+                    <h3 className="font-display font-black text-xs uppercase mt-2 leading-snug">{selectedContractDetail.name}</h3>
+                    <p className="text-[10px] opacity-80 font-mono mt-0.5">Số HĐ: {selectedContractDetail.code}</p>
+                  </div>
+
+                  {/* Body (Scrollable) */}
+                  <div className="p-4 overflow-y-auto space-y-4 text-xs flex-grow">
+                    {/* Parameters Grid */}
+                    <div className="bg-slate-50 border border-slate-100/80 rounded-2xl p-3.5 grid grid-cols-2 gap-x-3 gap-y-2.5 text-[10px]">
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Ngày bắt đầu:</span>
+                        <span className="font-bold text-slate-800">{selectedContractDetail.startDate}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Ngày kết thúc:</span>
+                        <span className="font-bold text-slate-800">{selectedContractDetail.endDate}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Tổng phí bảo hiểm:</span>
+                        <span className="font-extrabold text-blue-600">{selectedContractDetail.premium}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Thanh toán:</span>
+                        <span className="font-bold text-emerald-600">{selectedContractDetail.paymentStatus}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Trạng thái đơn:</span>
+                        <span className="font-bold text-emerald-600">{selectedContractDetail.issueStatus}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-semibold block">Hiệu lực:</span>
+                        <span className="font-bold text-emerald-600">{selectedContractDetail.status}</span>
+                      </div>
+                    </div>
+
+                    {/* Benefits Limit Checker */}
+                    <div className="space-y-3">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">HẠN MỨC QUYỀN LỢI CHI TIẾT</span>
+                      
+                      <div className="space-y-3">
+                        {selectedContractDetail.benefits.map((b: any) => (
+                          <div key={b.id} className="space-y-1 bg-slate-50/50 border border-slate-100/50 p-2.5 rounded-xl">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-slate-800 text-[10px]">{b.category}</span>
+                              <span className="font-bold text-slate-500 text-[9px]">{b.limit}</span>
+                            </div>
+                            <p className="text-[9px] text-slate-400 leading-normal">{b.desc}</p>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-1">
+                              <div className={`${b.color} h-full rounded-full`} style={{ width: `${b.percent}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[8px] font-bold text-slate-400">
+                              <span>Đã dùng: {b.used}</span>
+                              <span>Còn lại: {b.remaining}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Action Buttons */}
+                  <div className="p-3 bg-slate-50 border-t border-slate-100 flex flex-col gap-1.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        setSelectedContractDetail(null);
+                        // Find corresponding card
+                        const card = cards.find(c => c.id === selectedContractDetail.cardId) || cards[0];
+                        setSelectedCardFromEcard(card);
+                        setCurrentWizard(true);
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-2.5 rounded-2xl text-[11px] font-bold shadow-md shadow-blue-500/15 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <span>Tạo yêu cầu bồi thường (Step 2)</span>
+                      <ArrowRight size={12} className="stroke-[2.5]" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedContractDetail(null)}
+                      className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-2xl text-[10px] font-bold cursor-pointer transition-all"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>
 

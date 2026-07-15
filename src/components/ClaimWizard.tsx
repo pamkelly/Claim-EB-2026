@@ -165,14 +165,26 @@ interface ClaimWizardProps {
     isDependent: boolean;
   };
   draftClaim?: ClaimRequest;
+  selectedCardFromEcard?: InsuranceCard;
+  bankAccounts?: {
+    defaultBank: string;
+    defaultAccount: string;
+    extra1Bank: string;
+    extra1Account: string;
+    extra2Bank: string;
+    extra2Account: string;
+  };
 }
 
-export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporateMode = false, corporateEmployee, draftClaim }: ClaimWizardProps) {
+export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporateMode = false, corporateEmployee, draftClaim, selectedCardFromEcard, bankAccounts }: ClaimWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(() => {
     if (draftClaim) {
       return 2; // Jump directly to event info if resuming / recreating
     }
     if (isCorporateMode && corporateEmployee) {
+      return 2;
+    }
+    if (selectedCardFromEcard) {
       return 2;
     }
     return 1;
@@ -181,12 +193,16 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [showVerificationOverlay, setShowVerificationOverlay] = useState(false);
   // STEP 1: Select Insured Person
   const [searchName, setSearchName] = useState("");
+  const [wizardContractSubTab, setWizardContractSubTab] = useState<'my-contract' | 'relatives-contract'>('my-contract');
   const [selectedCardId, setSelectedCardId] = useState<string>(() => {
     if (draftClaim) {
       return draftClaim.cardId;
     }
     if (isCorporateMode) {
       return corporateEmployee ? corporateEmployee.id : "emp-6"; // Nguyễn Văn An default (emp-6)
+    }
+    if (selectedCardFromEcard) {
+      return selectedCardFromEcard.id;
     }
     return cards.length > 0 ? cards[0].id : "";
   });
@@ -236,6 +252,23 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [isManualReview, setIsManualReview] = useState(false);
   const [scannedReceipts, setScannedReceipts] = useState<{ name: string; amount: number }[]>([]);
   const [showGycPreview, setShowGycPreview] = useState(false);
+  const [isBankEditing, setIsBankEditing] = useState(false);
+  const [showBankSelectModal, setShowBankSelectModal] = useState(false);
+  const [localBankSelectIndex, setLocalBankSelectIndex] = useState(0);
+
+
+  const getContractInfoForCard = (card: InsuranceCard) => {
+    if (card.id === "card-1") {
+      return { contractName: "PTI Care Sức khỏe Vàng", contractCode: "PTI-CON-9912" };
+    } else if (card.id === "card-2") {
+      return { contractName: "PTI Family Care Toàn Diện", contractCode: "PTI-FAM-3322" };
+    } else if (card.id === "card-3") {
+      return { contractName: "PTI Care An Gia", contractCode: "PTI-FAM-3323" };
+    } else if (card.id === "card-4") {
+      return { contractName: "PTI Care Sức khỏe Hưu Trí", contractCode: "PTI-FAM-3321" };
+    }
+    return { contractName: "PTI Care Linh Hoạt", contractCode: `PTI-CON-${card.id.slice(-4).toUpperCase()}` };
+  };
 
   const getHospitalInvoices = (hospitalName: string) => {
     if (!hospitalName) return [];
@@ -323,6 +356,31 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [email, setEmail] = useState(() => draftClaim ? (draftClaim.email || "") : "");
   const [infoError, setInfoError] = useState("");
 
+  const bankOptions = [
+    {
+      label: "Tài khoản mặc định",
+      bankName: bankAccounts?.defaultBank || "Vietcombank (VCB)",
+      bankAccount: bankAccounts?.defaultAccount || "101889922233",
+    },
+    {
+      label: "Tài khoản nhận tiền khác 1",
+      bankName: bankAccounts?.extra1Bank || "Techcombank (TCB)",
+      bankAccount: bankAccounts?.extra1Account || "1903444222115",
+    },
+    {
+      label: "Tài khoản nhận tiền khác 2",
+      bankName: bankAccounts?.extra2Bank || "BIDV",
+      bankAccount: bankAccounts?.extra2Account || "5801000999888",
+    }
+  ];
+
+  React.useEffect(() => {
+    if (showBankSelectModal) {
+      const idx = bankOptions.findIndex(opt => opt.bankAccount === bankAccount);
+      setLocalBankSelectIndex(idx >= 0 ? idx : 0);
+    }
+  }, [showBankSelectModal, bankAccount]);
+
   // Auto populate bank info whenever selected card changes
   React.useEffect(() => {
     if (draftClaim) {
@@ -338,14 +396,14 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
       } else {
         const matchingCard = cards.find(c => c.id === selectedCardId);
         if (matchingCard) {
-          setBankName("Vietcombank (VCB)");
-          setBankAccount("101889922233");
+          setBankName(bankAccounts?.defaultBank || "Vietcombank (VCB)");
+          setBankAccount(bankAccounts?.defaultAccount || "101889922233");
           setBankOwner(matchingCard.name.toUpperCase());
           setEmail(matchingCard.relationship === "Bản thân" ? "khachhang.care@gmail.com" : "nhanvienchinh.fpt@gmail.com");
         }
       }
     }
-  }, [selectedCardId, isCorporateMode, currentEmployee, cards]);
+  }, [selectedCardId, isCorporateMode, currentEmployee, cards, bankAccounts]);
 
   const handleOcrScan = (amountVal: number, invoiceName: string) => {
     setIsScanningOcr(true);
@@ -525,6 +583,33 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
           }
         }
       }
+
+      // Pre-attach invoices/documents selected in Step 2:
+      const invoices = getHospitalInvoices(hospital).filter(inv => selectedLinkedInvoices.includes(inv.id));
+      const preAttachedPaymentDocs = invoices.map(inv => ({
+        name: `${inv.code}.pdf`,
+        size: "350 KB",
+        type: "application/pdf"
+      }));
+
+      setPaymentDocs(prev => {
+        const existingNames = prev.map(d => d.name);
+        const filteredNew = preAttachedPaymentDocs.filter(d => !existingNames.includes(d.name));
+        return [...prev, ...filteredNew];
+      });
+
+      // Automatically pre-attach an official electronic medical record so Step 3 validation is streamlined
+      setMedicalDocs(prev => {
+        if (prev.length === 0) {
+          return [{
+            name: `So_Kham_Benh_Dien_Tu_${hospital.replace(/\s+/g, "_")}.pdf`,
+            size: "520 KB",
+            type: "application/pdf"
+          }];
+        }
+        return prev;
+      });
+
       // Step 3 is now Document Uploads
       setStep(3);
     } else if (step === 3) {
@@ -716,7 +801,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
 
             {/* Labels */}
             <div className="flex justify-between mt-2 px-1 text-[9px] font-bold select-none text-center">
-              <span className={step === 1 ? "text-blue-600 font-extrabold" : "text-slate-500"}>Chọn người</span>
+              <span className={step === 1 ? "text-blue-600 font-extrabold" : "text-slate-500"}>Chọn HĐBH</span>
               <span className={step === 2 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Khai báo</span>
               <span className={step === 3 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Đính kèm</span>
               <span className={step === 4 ? "text-blue-600 font-extrabold" : "text-slate-400"}>Nhận tiền & Ký</span>
@@ -754,7 +839,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                 <div className="bg-blue-50/50 border border-blue-100/30 p-3.5 rounded-2xl flex items-start gap-3">
                   <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
                   <p className="text-[11px] leading-relaxed text-slate-600">
-                    Vui lòng chọn thẻ bảo hiểm điện tử của người được bảo hiểm cần yêu cầu bồi thường dưới đây.
+                    Vui lòng chọn hợp đồng bảo hiểm cần yêu cầu bồi thường dưới đây.
                   </p>
                 </div>
               )}
@@ -767,9 +852,37 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   value={searchName}
                   onChange={(e) => setSearchName(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-medium text-slate-800 glass-input"
-                  placeholder={isCorporateMode ? "Tìm theo tên hoặc mã nhân viên (ví dụ: FPT-00812)..." : "Tìm kiếm người được bảo hiểm..."}
+                  placeholder={isCorporateMode ? "Tìm theo tên hoặc mã nhân viên (ví dụ: FPT-00812)..." : "Tìm tên hợp đồng, mã HĐ hoặc tên người được bảo hiểm..."}
                 />
               </div>
+
+              {/* Sub-tabs for Individual Contracts */}
+              {!isCorporateMode && (
+                <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setWizardContractSubTab("my-contract")}
+                    className={`py-2 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                      wizardContractSubTab === "my-contract"
+                        ? "bg-white text-slate-800 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Hợp đồng của tôi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWizardContractSubTab("relatives-contract")}
+                    className={`py-2 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                      wizardContractSubTab === "relatives-contract"
+                        ? "bg-white text-slate-800 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Hợp đồng người thân
+                  </button>
+                </div>
+              )}
 
               {/* Cards Roster Listing */}
               <div className="space-y-3 pt-1">
@@ -834,38 +947,70 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                     </div>
                   )
                 ) : (
-                  filteredCards.length > 0 ? (
-                    filteredCards.map((card) => {
+                  (() => {
+                    const filteredContracts = cards.filter((card) => {
+                      // Sub-tab filter
+                      const isSelf = card.relationship === "Bản thân";
+                      if (wizardContractSubTab === "my-contract" && !isSelf) return false;
+                      if (wizardContractSubTab === "relatives-contract" && isSelf) return false;
+
+                      // Search filter
+                      const contractInfo = getContractInfoForCard(card);
+                      const q = searchName.toLowerCase();
+                      return (
+                        card.name.toLowerCase().includes(q) ||
+                        card.cardNumber.toLowerCase().includes(q) ||
+                        contractInfo.contractName.toLowerCase().includes(q) ||
+                        contractInfo.contractCode.toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (filteredContracts.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-slate-400 text-xs font-medium bg-white/50 border border-slate-100 rounded-2xl">
+                          Không tìm thấy hợp đồng bảo hiểm nào phù hợp.
+                        </div>
+                      );
+                    }
+
+                    return filteredContracts.map((card) => {
                       const isSelected = selectedCardId === card.id;
                       const isExpired = card.status === "HetHan";
-                      
+                      const contractInfo = getContractInfoForCard(card);
+
                       return (
                         <div
                           key={card.id}
                           onClick={() => !isExpired && setSelectedCardId(card.id)}
-                          className={`relative rounded-2xl p-4 border transition-all cursor-pointer ${
-                            isExpired 
-                              ? "opacity-50 border-slate-200 bg-slate-50 cursor-not-allowed" 
+                          className={`relative rounded-2xl p-4 border transition-all cursor-pointer text-left ${
+                            isExpired
+                              ? "opacity-50 border-slate-200 bg-slate-50 cursor-not-allowed"
                               : isSelected
                               ? "border-blue-500 bg-blue-50/20 shadow-md shadow-blue-500/5 ring-1 ring-blue-500/30"
-                              : "border-slate-100 bg-white/60 hover:bg-white"
+                              : "border-slate-100 bg-white hover:bg-slate-50/50"
                           }`}
                         >
                           <div className="flex justify-between items-start">
                             <div className="space-y-1">
-                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                {card.relationship}
+                              <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                                card.relationship === "Bản thân"
+                                  ? "bg-blue-50 text-blue-600 border-blue-100"
+                                  : "bg-amber-50 text-amber-600 border-amber-100"
+                              }`}>
+                                {card.relationship === "Bản thân" ? "Hợp đồng chính" : `Thành viên - ${card.relationship}`}
                               </span>
-                              <h4 className="text-sm font-bold text-slate-800 tracking-tight font-display mt-1.5">
-                                {card.name}
+                              
+                              <h4 className="text-xs font-black text-slate-800 tracking-tight pt-1.5 uppercase font-display">
+                                {contractInfo.contractName}
                               </h4>
-                              <p className="text-[11px] font-mono text-slate-500">{card.cardNumber}</p>
+                              <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                👤 Người ĐB: {card.name}
+                              </p>
+                              <p className="text-[10px] font-mono text-slate-400">Số hợp đồng: {contractInfo.contractCode} • Thẻ: {card.cardNumber}</p>
                             </div>
-                            
+
                             {isExpired ? (
-                              <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">
-                                Hết hạn
-                              </span>
+                              <span className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">Hết hạn</span>
                             ) : isSelected ? (
                               <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white">
                                 <Check size={12} className="stroke-[3]" />
@@ -875,18 +1020,14 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                             )}
                           </div>
 
-                          <div className="mt-3.5 pt-3 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 font-medium">
+                          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-[9px] text-slate-400 font-semibold">
                             <span>Ngày sinh: {card.birthday}</span>
-                            <span>Hạn dùng: {card.expiryDate}</span>
+                            <span>Hạn bảo hiểm: {card.expiryDate}</span>
                           </div>
                         </div>
                       );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-slate-400 text-xs font-medium">
-                      Không tìm thấy thẻ phù hợp.
-                    </div>
-                  )
+                    });
+                  })()
                 )}
               </div>
             </motion.div>
@@ -979,6 +1120,25 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                     <span>{eventError}</span>
                   </div>
                 )}
+
+                {/* Treatment Date */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1 flex items-center gap-1">
+                    <Calendar size={13} className="text-blue-500" />
+                    <span>Ngày điều trị *</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={treatmentDate}
+                      onChange={(e) => setTreatmentDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 glass-input"
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1 ml-1 font-semibold leading-relaxed">
+                    Hệ thống sẽ đối chiếu ngày này với thời hạn hợp đồng bảo hiểm ({selectedCard?.expiryDate || "N/A"}) để xác định hiệu lực sự kiện.
+                  </p>
+                </div>
 
                 {/* Hospital / Healthcare */}
                 <div className="relative">
@@ -1143,25 +1303,6 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                     </motion.div>
                   )}
                 </AnimatePresence>
-
-                {/* Treatment Date */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 ml-1 flex items-center gap-1">
-                    <Calendar size={13} className="text-blue-500" />
-                    <span>Ngày điều trị *</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={treatmentDate}
-                      onChange={(e) => setTreatmentDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 glass-input"
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 mt-1 ml-1 font-semibold leading-relaxed">
-                    Hệ thống sẽ đối chiếu ngày này với thời hạn hợp đồng bảo hiểm ({selectedCard?.expiryDate || "N/A"}) để xác định hiệu lực sự kiện.
-                  </p>
-                </div>
 
                 {/* Treatment Type */}
                 <div>
@@ -1714,8 +1855,31 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                           {/* AI Quality Check for Payment Documents */}
                           {(() => {
                             const declaredNum = Number((amountStr || "0").replace(/\D/g, ""));
+                            
+                            // Get the specific OCR amount for this individual document
+                            let currentDocOcrAmount = declaredNum; // default
+                            if (doc.name.includes("Hong_Ngoc") || doc.name.includes("hong_ngoc")) currentDocOcrAmount = 450000;
+                            else if (doc.name.includes("VAT") || doc.name.includes("vat")) currentDocOcrAmount = 1450000;
+                            else if (doc.name.includes("bo_sung")) currentDocOcrAmount = 300000;
+                            else if (doc.name.includes("9981")) currentDocOcrAmount = 1250000;
+                            else if (doc.name.includes("9982")) currentDocOcrAmount = 680000;
+                            else if (doc.name.includes("9983")) currentDocOcrAmount = 850000;
+
+                            // Calculate the total sum of all attached payment documents
+                            const totalOcrSum = paymentDocs.reduce((acc, d) => {
+                              let ocr = declaredNum; // default
+                              if (d.name.includes("Hong_Ngoc") || d.name.includes("hong_ngoc")) ocr = 450000;
+                              else if (d.name.includes("VAT") || d.name.includes("vat")) ocr = 1450000;
+                              else if (d.name.includes("bo_sung")) ocr = 300000;
+                              else if (d.name.includes("9981")) ocr = 1250000;
+                              else if (d.name.includes("9982")) ocr = 680000;
+                              else if (d.name.includes("9983")) ocr = 850000;
+                              return acc + ocr;
+                            }, 0);
+
                             const analysis = getDocumentAnalysis(doc.name, "payment", declaredNum);
-                            const isMismatch = analysis.ocrAmount !== declaredNum;
+                            const isMismatch = totalOcrSum !== declaredNum;
+
                             return (
                               <div className="ml-1 bg-slate-50/60 rounded-xl p-3 border border-slate-100 space-y-2 text-[10px] text-left">
                                 <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
@@ -1739,7 +1903,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                                   </div>
                                   <div>
                                     <span className="text-slate-400">Hóa đơn thực tế: </span>
-                                    <strong className="text-blue-600 font-mono font-extrabold">{analysis.ocrAmount.toLocaleString("vi-VN")} đ</strong>
+                                    <strong className="text-blue-600 font-mono font-extrabold">{currentDocOcrAmount.toLocaleString("vi-VN")} đ</strong>
                                   </div>
                                   <div>
                                     <span className="text-slate-400">Số tiền khai báo: </span>
@@ -1748,23 +1912,24 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                                 </div>
                                 
                                 <div className="space-y-1.5">
-                                  <p className={`text-[9px] font-medium leading-relaxed p-1.5 rounded border ${
-                                    isMismatch 
-                                      ? "bg-red-50/50 border-red-100 text-red-700" 
-                                      : "bg-emerald-50/30 border-emerald-100 text-emerald-700"
-                                  }`}>
-                                    {analysis.msg}
-                                  </p>
-                                  
-                                  {isMismatch && (
-                                    <button
-                                      key={`btn-${doc.name}`}
-                                      type="button"
-                                      onClick={() => setAmountStr(analysis.ocrAmount.toLocaleString("vi-VN"))}
-                                      className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95"
-                                    >
-                                      ⚡ Sửa số tiền khai báo thành {analysis.ocrAmount.toLocaleString("vi-VN")} đ
-                                    </button>
+                                  {isMismatch ? (
+                                    <>
+                                      <p className="text-[9px] font-medium leading-relaxed p-1.5 rounded border bg-red-50/50 border-red-100 text-red-700">
+                                        ⚠️ Lệch số tiền: Tổng số tiền trích xuất trên {paymentDocs.length} hóa đơn là <strong>{totalOcrSum.toLocaleString("vi-VN")} đ</strong> nhưng bạn đang khai báo là <strong>{declaredNum.toLocaleString("vi-VN")} đ</strong>.
+                                      </p>
+                                      <button
+                                        key={`btn-${doc.name}`}
+                                        type="button"
+                                        onClick={() => setAmountStr(totalOcrSum.toLocaleString("vi-VN"))}
+                                        className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                                      >
+                                        ⚡ Cập nhật tổng khai báo thành {totalOcrSum.toLocaleString("vi-VN")} đ
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <p className="text-[9px] font-medium leading-relaxed p-1.5 rounded border bg-emerald-50/30 border-emerald-100 text-emerald-700">
+                                      ✓ Số tiền khai báo trùng khớp hoàn toàn với tổng giá trị hóa đơn điện tử ({totalOcrSum.toLocaleString("vi-VN")} đ).
+                                    </p>
                                   )}
                                 </div>
                               </div>
@@ -2034,8 +2199,17 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
               )}
 
               <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-4">
-                <h4 className="text-xs font-black text-slate-700 border-b border-slate-100 pb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                  <CreditCard size={15} className="text-blue-500" /> Tài khoản nhận bồi thường trực tiếp
+                <h4 className="text-xs font-black text-slate-700 border-b border-slate-100 pb-2.5 flex items-center justify-between uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5"><CreditCard size={15} className="text-blue-500" /> Tài khoản nhận bồi thường trực tiếp</span>
+                  {!isCorporateMode && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBankSelectModal(true)}
+                      className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer border border-blue-200 active:scale-95"
+                    >
+                      Thay đổi
+                    </button>
+                  )}
                 </h4>
 
                 {infoError && (
@@ -2081,39 +2255,54 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 flex items-center gap-1">
                       <span>Ngân hàng thụ hưởng</span>
-                      {isCorporateMode && <Lock size={10} className="text-slate-400" />}
+                      {(isCorporateMode || !isBankEditing) && <Lock size={10} className="text-slate-400" />}
                     </label>
                     <input
                       type="text"
-                      disabled={true}
+                      disabled={isCorporateMode ? true : !isBankEditing}
                       value={bankName}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200"
+                      onChange={(e) => setBankName(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                        (isCorporateMode || !isBankEditing)
+                          ? "text-slate-600 bg-slate-100 border-slate-200 cursor-not-allowed"
+                          : "text-slate-800 bg-white border-blue-400 focus:ring-1 focus:ring-blue-500"
+                      }`}
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 flex items-center gap-1">
                       <span>Số tài khoản nhận bồi thường</span>
-                      {isCorporateMode && <Lock size={10} className="text-slate-400" />}
+                      {(isCorporateMode || !isBankEditing) && <Lock size={10} className="text-slate-400" />}
                     </label>
                     <input
                       type="text"
-                      disabled={true}
+                      disabled={isCorporateMode ? true : !isBankEditing}
                       value={bankAccount}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200"
+                      onChange={(e) => setBankAccount(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold border transition-all ${
+                        (isCorporateMode || !isBankEditing)
+                          ? "text-slate-600 bg-slate-100 border-slate-200 cursor-not-allowed"
+                          : "text-slate-800 bg-white border-blue-400 focus:ring-1 focus:ring-blue-500"
+                      }`}
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 flex items-center gap-1">
                       <span>Chủ tài khoản thụ hưởng (NĐBH chính)</span>
-                      {isCorporateMode && <Lock size={10} className="text-slate-400" />}
+                      {(isCorporateMode || !isBankEditing) && <Lock size={10} className="text-slate-400" />}
                     </label>
                     <input
                       type="text"
-                      disabled={true}
+                      disabled={isCorporateMode ? true : !isBankEditing}
                       value={bankOwner}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200"
+                      onChange={(e) => setBankOwner(e.target.value.toUpperCase())}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold border transition-all ${
+                        (isCorporateMode || !isBankEditing)
+                          ? "text-slate-600 bg-slate-100 border-slate-200 cursor-not-allowed"
+                          : "text-slate-800 bg-white border-blue-400 focus:ring-1 focus:ring-blue-500"
+                      }`}
                     />
                   </div>
                 </div>
@@ -2884,6 +3073,100 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
               </div>
             </motion.div>
           </>
+        )}
+
+        {showBankSelectModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-end justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="w-full max-w-[360px] bg-white rounded-t-3xl rounded-b-3xl p-5 space-y-4 border border-slate-100 shadow-2xl"
+            >
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={18} className="text-blue-600" />
+                  <h3 className="font-display font-bold text-sm text-slate-800">
+                    Chọn tài khoản bồi bồi thường
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBankSelectModal(false)}
+                  className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-[10px] text-slate-500 font-medium leading-relaxed text-left">
+                Vui lòng chọn 1 trong 3 tài khoản thụ hưởng bạn đã đăng ký để hệ thống cập nhật vào giấy yêu cầu bồi thường:
+              </p>
+
+              <div className="space-y-2.5">
+                {bankOptions.map((opt, idx) => {
+                  const isSelected = localBankSelectIndex === idx;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => setLocalBankSelectIndex(idx)}
+                      className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex items-start gap-3 relative ${
+                        isSelected
+                          ? "bg-blue-50/50 border-blue-500 ring-1 ring-blue-500/20 shadow-sm"
+                          : "bg-white border-slate-100 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-1 shrink-0 ${
+                        isSelected ? "border-blue-500 bg-blue-500 text-white" : "border-slate-300 bg-white"
+                      }`}>
+                        {isSelected && <Check size={10} className="stroke-[3]" />}
+                      </div>
+                      
+                      <div className="space-y-0.5">
+                        <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                          idx === 0 
+                            ? "bg-emerald-50 text-emerald-600 border border-emerald-100/30" 
+                            : "bg-slate-100 text-slate-500 border border-slate-200/30"
+                        }`}>
+                          {opt.label}
+                        </span>
+                        <p className="text-xs font-bold text-slate-800 font-display mt-1">{opt.bankName}</p>
+                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">Số TK: {opt.bankAccount}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBankSelectModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-2xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedOpt = bankOptions[localBankSelectIndex];
+                    setBankName(selectedOpt.bankName);
+                    setBankAccount(selectedOpt.bankAccount);
+                    setShowBankSelectModal(false);
+                  }}
+                  className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl text-xs font-bold shadow-lg shadow-blue-500/10 transition-all cursor-pointer text-center"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
