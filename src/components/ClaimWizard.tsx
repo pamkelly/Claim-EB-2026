@@ -164,10 +164,14 @@ interface ClaimWizardProps {
     email: string;
     isDependent: boolean;
   };
+  draftClaim?: ClaimRequest;
 }
 
-export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporateMode = false, corporateEmployee }: ClaimWizardProps) {
+export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporateMode = false, corporateEmployee, draftClaim }: ClaimWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(() => {
+    if (draftClaim) {
+      return 2; // Jump directly to event info if resuming / recreating
+    }
     if (isCorporateMode && corporateEmployee) {
       return 2;
     }
@@ -175,10 +179,12 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   });
   const [showTermsSheet, setShowTermsSheet] = useState(false);
   const [showVerificationOverlay, setShowVerificationOverlay] = useState(false);
-  
   // STEP 1: Select Insured Person
   const [searchName, setSearchName] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string>(() => {
+    if (draftClaim) {
+      return draftClaim.cardId;
+    }
     if (isCorporateMode) {
       return corporateEmployee ? corporateEmployee.id : "emp-6"; // Nguyễn Văn An default (emp-6)
     }
@@ -207,10 +213,10 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
     : cards.find(c => c.id === selectedCardId);
 
   // STEP 2: Event Info
-  const [hospital, setHospital] = useState("");
+  const [hospital, setHospital] = useState(() => draftClaim ? draftClaim.hospital : "");
   const [showHospitalDropdown, setShowHospitalDropdown] = useState(false);
-  const [treatmentType, setTreatmentType] = useState<TreatmentType>("NgoaiTru");
-  const [cause, setCause] = useState("Ốm bệnh");
+  const [treatmentType, setTreatmentType] = useState<TreatmentType>(() => draftClaim ? draftClaim.treatmentType : "NgoaiTru");
+  const [cause, setCause] = useState(() => draftClaim ? draftClaim.cause : "Ốm bệnh");
   // Conditional fields based on selected cause (Ốm bệnh, Tai nạn, Thai sản)
   const [accidentDate, setAccidentDate] = useState("2026-07-14");
   const [accidentPlace, setAccidentPlace] = useState("");
@@ -221,7 +227,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [birthMethod, setBirthMethod] = useState("SinhThuong");
   
   const [treatmentDate, setTreatmentDate] = useState("2026-07-14");
-  const [amountStr, setAmountStr] = useState("");
+  const [amountStr, setAmountStr] = useState(() => draftClaim ? (draftClaim.amount ? draftClaim.amount.toLocaleString("vi-VN") : "") : "");
   const [selectedLinkedInvoices, setSelectedLinkedInvoices] = useState<number[]>([]);
   const [previewDoc, setPreviewDoc] = useState<{ name: string; size: string; type: string; category: string } | null>(null);
   const [confirmedDocs, setConfirmedDocs] = useState<string[]>([]);
@@ -231,21 +237,98 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const [scannedReceipts, setScannedReceipts] = useState<{ name: string; amount: number }[]>([]);
   const [showGycPreview, setShowGycPreview] = useState(false);
 
+  const getHospitalInvoices = (hospitalName: string) => {
+    if (!hospitalName) return [];
+    const short = hospitalName.split(" ").map(w => w[0]).join("").toUpperCase() || "PTI";
+    return [
+      { id: 1, code: `${short}-eInv-9981`, desc: "Phí khám bệnh & Xét nghiệm máu", amount: 1250000, date: "14/07/2026" },
+      { id: 2, code: `${short}-eInv-9982`, desc: "Thuốc điều trị & Vật tư y tế", amount: 680000, date: "14/07/2026" },
+      { id: 3, code: `${short}-eInv-9983`, desc: "Chụp X-Quang & Siêu âm ổ bụng", amount: 850000, date: "14/07/2026" }
+    ];
+  };
+
+  const getDocumentAnalysis = (docName: string, category: string, declaredAmount: number) => {
+    if (category === "payment") {
+      let ocrAmount = declaredAmount;
+      let isBlurry = false;
+      let blurScore = 96;
+      let text = "Rõ nét";
+      let status = "Khớp hoàn toàn";
+      let msg = "✓ Số tiền trích xuất trùng khớp hoàn toàn với số tiền yêu cầu bồi thường.";
+      
+      if (docName.includes("Hong_Ngoc") || docName.includes("hong_ngoc")) {
+        ocrAmount = 450000;
+      } else if (docName.includes("VAT") || docName.includes("vat")) {
+        ocrAmount = 1450000;
+      } else if (docName.includes("bo_sung") || docName.includes("bo_sung")) {
+        ocrAmount = 300000;
+      } else if (docName.includes("9981")) {
+        ocrAmount = 1250000;
+      } else if (docName.includes("9982")) {
+        ocrAmount = 680000;
+      } else if (docName.includes("9983")) {
+        ocrAmount = 850000;
+      }
+      
+      if (docName.endsWith(".jpg") || docName.includes("Hong_Ngoc")) {
+        isBlurry = true;
+        blurScore = 52;
+        text = "Hơi mờ (Cảnh báo)";
+      }
+      
+      const diff = Math.abs(ocrAmount - declaredAmount);
+      if (diff > 0) {
+        status = "Lệch số tiền";
+        msg = `⚠️ Lệch số tiền: Trích xuất OCR là ${ocrAmount.toLocaleString("vi-VN")} đ nhưng khai báo là ${declaredAmount.toLocaleString("vi-VN")} đ. Bạn có muốn cập nhật số tiền yêu cầu bồi thường khớp với hóa đơn này không?`;
+      }
+      
+      return {
+        ocrAmount,
+        isBlurry,
+        blurScore,
+        text,
+        status,
+        msg,
+        needRetake: isBlurry && blurScore < 60
+      };
+    } else {
+      let isBlurry = false;
+      let blurScore = 98;
+      let text = "Cực kỳ rõ nét";
+      if (docName.includes("Don_thuoc") || docName.includes("2")) {
+        isBlurry = true;
+        blurScore = 41;
+        text = "Bị mờ nặng (Không đạt)";
+      }
+      return {
+        isBlurry,
+        blurScore,
+        text,
+        needRetake: isBlurry && blurScore < 50,
+        msg: isBlurry ? "⚠️ Tài liệu bị mờ góc dưới bên phải, chữ viết tay bác sĩ khó đọc. Khuyến nghị chụp lại." : "✓ Tài liệu rõ nét, đầy đủ thông tin chuẩn đoán và mộc dấu tròn."
+      };
+    }
+  };
+
   // OCR Scan Simulation States
   const [isScanningOcr, setIsScanningOcr] = useState(false);
   const [ocrSuccess, setOcrSuccess] = useState(false);
   const [ocrLog, setOcrLog] = useState("");
 
   // STEP 3: Compensation Info
-  const [receiveMethod, setReceiveMethod] = useState<ReceiveMethod>("ChuyenKhoan");
-  const [bankName, setBankName] = useState("");
-  const [bankAccount, setBankAccount] = useState("");
-  const [bankOwner, setBankOwner] = useState("");
-  const [email, setEmail] = useState("");
+  const [receiveMethod, setReceiveMethod] = useState<ReceiveMethod>(() => draftClaim ? draftClaim.receiveMethod : "ChuyenKhoan");
+  const [bankName, setBankName] = useState(() => draftClaim ? (draftClaim.bankName || "") : "");
+  const [bankAccount, setBankAccount] = useState(() => draftClaim ? (draftClaim.bankAccount || "") : "");
+  const [bankOwner, setBankOwner] = useState(() => draftClaim ? (draftClaim.bankOwner || "") : "");
+  const [email, setEmail] = useState(() => draftClaim ? (draftClaim.email || "") : "");
   const [infoError, setInfoError] = useState("");
 
   // Auto populate bank info whenever selected card changes
   React.useEffect(() => {
+    if (draftClaim) {
+      // Keep draft values on first load
+      return;
+    }
     if (selectedCard) {
       if (isCorporateMode && currentEmployee) {
         setBankName(currentEmployee.bankName);
@@ -527,7 +610,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
   const executeFinalSubmission = () => {
     // Construct new Claim Request
     const newClaim: ClaimRequest = {
-      id: `PTI-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: (draftClaim && draftClaim.status !== "TuChoi") ? draftClaim.id : `PTI-${Math.floor(1000 + Math.random() * 9000)}`,
       cardId: selectedCardId,
       insuredName: selectedCard?.name || "Khách hàng PTI",
       cardNumber: selectedCard?.cardNumber || "",
@@ -983,7 +1066,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3.5 space-y-2.5 overflow-hidden shadow-sm"
+                      className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-3 overflow-hidden shadow-sm text-left"
                     >
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-1.5">
@@ -991,74 +1074,71 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                           </span>
-                          <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">
-                            Hóa đơn liên kết tự động
+                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">
+                            Đồng bộ hóa đơn điện tử (OCR Link)
                           </span>
                         </div>
-                        <span className="text-[8px] text-slate-400 font-bold bg-slate-100/50 px-1.5 py-0.5 rounded">Hệ thống liên kết</span>
+                        <span className="text-[8px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">Live Connect</span>
                       </div>
                       
                       <p className="text-[10px] leading-relaxed text-slate-600 font-medium">
-                        Hệ thống bảo lãnh PTI Care đã phát hiện hóa đơn điện tử tương thích tại <strong>{hospital}</strong>. Chọn để tự động liên kết nhanh:
+                        Cổng dữ liệu PTI Care phát hiện <strong>{getHospitalInvoices(hospital).length} hóa đơn điện tử trùng khớp</strong> của bệnh nhân <strong>{selectedCard?.name}</strong> tại <strong>{hospital}</strong> ngày 14/07/2026. Chọn hóa đơn cần thanh toán:
                       </p>
 
-                      <div className="space-y-1.5">
-                        {(() => {
-                          const short = hospital.split(" ").map(w => w[0]).join("").toUpperCase();
-                          const linkedInvoices = [
-                            { id: 1, code: `${short}-eInv-8891`, desc: "Phí khám & Chẩn đoán hình ảnh", amount: 1850000 },
-                            { id: 2, code: `${short}-eInv-8892`, desc: "Đơn thuốc & Vật tư y tế", amount: 620000 }
-                          ];
-                          return linkedInvoices.map((inv) => {
-                            const isSelected = selectedLinkedInvoices.includes(inv.id);
-                            return (
-                              <button
-                                key={inv.id}
-                                type="button"
-                                onClick={() => {
-                                  let newSelected: number[];
-                                  if (isSelected) {
-                                    newSelected = selectedLinkedInvoices.filter(id => id !== inv.id);
-                                    setScannedReceipts(prev => prev.filter(r => r.name !== inv.code));
-                                  } else {
-                                    newSelected = [...selectedLinkedInvoices, inv.id];
-                                    setScannedReceipts(prev => {
-                                      if (prev.some(r => r.name === inv.code)) return prev;
-                                      return [...prev, { name: inv.code, amount: inv.amount }];
-                                    });
-                                  }
-                                  setSelectedLinkedInvoices(newSelected);
-                                  
-                                  // Recalculate amountStr
-                                  setTimeout(() => {
-                                    setScannedReceipts(prev => {
-                                      const sum = prev.reduce((acc, curr) => acc + curr.amount, 0);
-                                      setAmountStr(sum > 0 ? sum.toLocaleString("vi-VN") : "");
-                                      return prev;
-                                    });
-                                  }, 50);
-                                }}
-                                className={`w-full text-left p-2.5 rounded-xl border text-[10px] flex justify-between items-center transition-all cursor-pointer ${
-                                  isSelected
-                                    ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/15"
-                                    : "bg-white border-slate-100 text-slate-600 hover:border-blue-200"
-                                }`}
-                              >
-                                <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className={`font-mono font-bold text-[8px] px-1 py-0.2 rounded uppercase ${isSelected ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600"}`}>
-                                      {inv.code}
-                                    </span>
-                                    <span className="font-bold truncate max-w-[170px]">{inv.desc}</span>
-                                  </div>
+                      <div className="space-y-2">
+                        {getHospitalInvoices(hospital).map((inv) => {
+                          const isSelected = selectedLinkedInvoices.includes(inv.id);
+                          return (
+                            <button
+                              key={inv.id}
+                              type="button"
+                              onClick={() => {
+                                let newSelected: number[];
+                                if (isSelected) {
+                                  newSelected = selectedLinkedInvoices.filter(id => id !== inv.id);
+                                } else {
+                                  newSelected = [...selectedLinkedInvoices, inv.id];
+                                }
+                                setSelectedLinkedInvoices(newSelected);
+                                
+                                // Calculate total and update amountStr
+                                const allInvs = getHospitalInvoices(hospital);
+                                const sum = allInvs
+                                  .filter(item => newSelected.includes(item.id))
+                                  .reduce((acc, curr) => acc + curr.amount, 0);
+                                
+                                setAmountStr(sum > 0 ? sum.toLocaleString("vi-VN") : "");
+                                
+                                // Sync selected invoices to scannedReceipts so that they are also carried over to Step 3
+                                setScannedReceipts(prev => {
+                                  const manualOnly = prev.filter(r => !r.name.includes("-eInv-"));
+                                  const linkedOnly = allInvs
+                                    .filter(item => newSelected.includes(item.id))
+                                    .map(item => ({ name: item.code, amount: item.amount }));
+                                  return [...manualOnly, ...linkedOnly];
+                                });
+                              }}
+                              className={`w-full text-left p-3 rounded-xl border text-[10px] flex justify-between items-center transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/15"
+                                  : "bg-white border-slate-100 text-slate-600 hover:border-blue-200"
+                              }`}
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`font-mono font-bold text-[8px] px-1.5 py-0.5 rounded uppercase ${isSelected ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600"}`}>
+                                    {inv.code}
+                                  </span>
+                                  <span className="font-bold truncate max-w-[170px]">{inv.desc}</span>
                                 </div>
-                                <span className={`font-mono font-extrabold ${isSelected ? "text-white" : "text-blue-600"}`}>
-                                  {inv.amount.toLocaleString("vi-VN")} đ
-                                </span>
-                              </button>
-                            );
-                          });
-                        })()}
+                                <p className={`text-[8px] font-semibold ${isSelected ? "text-blue-100" : "text-slate-400"}`}>Ngày xuất: {inv.date} • Khách hàng: {selectedCard?.name}</p>
+                              </div>
+                              <span className={`font-mono font-extrabold text-xs shrink-0 pl-2 ${isSelected ? "text-white" : "text-blue-600"}`}>
+                                {inv.amount.toLocaleString("vi-VN")} đ
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </motion.div>
                   )}
@@ -1420,6 +1500,24 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                 </div>
               )}
 
+              {/* 💵 Editable Total Claim Amount inside Step 3 */}
+              <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/20 border border-blue-100 rounded-2xl p-4 flex justify-between items-center shadow-xs text-left">
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-black text-blue-700 uppercase tracking-wider">Tổng số tiền khai báo bồi thường</p>
+                  <p className="text-[9px] text-slate-500 font-medium">Bạn có thể điều chỉnh số tiền trực tiếp tại đây để khớp với chứng từ</p>
+                </div>
+                <div className="relative max-w-[150px]">
+                  <input
+                    type="text"
+                    value={amountStr}
+                    onChange={(e) => setAmountStr(formatCurrencyInput(e.target.value))}
+                    className="w-full pl-3 pr-10 py-1.5 rounded-xl text-xs font-mono font-extrabold text-blue-700 bg-white border border-blue-200 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">đ</span>
+                </div>
+              </div>
+
               {/* 1. Medical Documents Box */}
               <div className="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
                 <div>
@@ -1427,7 +1525,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                     <span>1. Chứng từ y tế *</span>
                     <span className="text-[10px] font-medium text-slate-400">(Sổ y bạ, phiếu khám, đơn thuốc...)</span>
                   </h4>
-                  <p className="text-[9px] text-slate-400 mt-0.5">Yêu cầu chụp rõ nét toàn bộ trang sổ và chỉ định điều trị</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5 text-left">Yêu cầu chụp rõ nét toàn bộ trang sổ và chỉ định điều trị</p>
                 </div>
 
                 <div 
@@ -1457,44 +1555,79 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
 
                 {/* File list */}
                 {medicalDocs.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     {medicalDocs.map((doc, idx) => {
                       const isConfirmed = confirmedDocs.includes(doc.name);
                       return (
-                        <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
-                          isConfirmed 
-                            ? "bg-emerald-50/50 border-emerald-200" 
-                            : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
-                        }`}>
-                          <div 
-                            onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
-                            className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
-                          >
-                            <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
-                            <div className="flex flex-col overflow-hidden">
-                              <span className="font-bold text-slate-700 truncate">{doc.name}</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-slate-400 shrink-0">({doc.size})</span>
-                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                        <div key={idx} className="space-y-1.5 border border-slate-100 p-2.5 rounded-xl bg-white/40">
+                          <div className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                            isConfirmed 
+                              ? "bg-emerald-50/50 border-emerald-200" 
+                              : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
+                          }`}>
+                            <div 
+                              onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
+                              className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
+                            >
+                              <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
+                              <div className="flex flex-col overflow-hidden text-left">
+                                <span className="font-bold text-slate-700 truncate">{doc.name}</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-slate-400 shrink-0">({doc.size})</span>
+                                  {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
+                                className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                              >
+                                Xem
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setMedicalDocs(medicalDocs.filter((_, i) => i !== idx))}
+                                className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewDoc({ ...doc, category: "medical" })}
-                              className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
-                            >
-                              Xem
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => setMedicalDocs(medicalDocs.filter((_, i) => i !== idx))}
-                              className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+
+                          {/* AI Quality Check for Medical Documents */}
+                          {(() => {
+                            const analysis = getDocumentAnalysis(doc.name, "medical", Number((amountStr || "0").replace(/\D/g, "")));
+                            return (
+                              <div className="ml-1 bg-slate-50/60 rounded-xl p-3 border border-slate-100 space-y-2 text-[10px] text-left">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                  <span className="font-bold text-slate-500 flex items-center gap-1">
+                                    <Sparkles size={11} className="text-blue-500" />
+                                    Kiểm tra thông minh & Độ rõ nét
+                                  </span>
+                                  <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] uppercase ${analysis.needRetake ? "bg-red-50 text-red-600 border border-red-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
+                                    {analysis.needRetake ? "⚠️ Cần chụp lại" : "✓ Đạt yêu cầu"}
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-[9px]">
+                                  <div>
+                                    <span className="text-slate-400">Độ rõ nét: </span>
+                                    <strong className={analysis.needRetake ? "text-red-600" : "text-emerald-600"}>{analysis.blurScore}% ({analysis.text})</strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Bị mờ / lóa: </span>
+                                    <strong className={analysis.needRetake ? "text-red-500" : "text-emerald-500"}>{analysis.needRetake ? "Phát hiện vết lóa" : "Không"}</strong>
+                                  </div>
+                                </div>
+                                
+                                <p className="text-[9px] text-slate-500 font-medium leading-relaxed bg-white/50 p-1.5 rounded border border-slate-50">
+                                  {analysis.msg}
+                                </p>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -1537,44 +1670,106 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                 </div>
 
                 {paymentDocs.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     {paymentDocs.map((doc, idx) => {
                       const isConfirmed = confirmedDocs.includes(doc.name);
                       return (
-                        <div key={idx} className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
-                          isConfirmed 
-                            ? "bg-emerald-50/50 border-emerald-200" 
-                            : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
-                        }`}>
-                          <div 
-                            onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
-                            className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
-                          >
-                            <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
-                            <div className="flex flex-col overflow-hidden">
-                              <span className="font-bold text-slate-700 truncate">{doc.name}</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-slate-400 shrink-0">({doc.size})</span>
-                                {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                        <div key={idx} className="space-y-1.5 border border-slate-100 p-2.5 rounded-xl bg-white/40">
+                          <div className={`flex justify-between items-center rounded-xl px-3 py-2 text-[10px] border transition-colors ${
+                            isConfirmed 
+                              ? "bg-emerald-50/50 border-emerald-200" 
+                              : "bg-slate-100/60 border-slate-200/50 hover:bg-slate-100"
+                          }`}>
+                            <div 
+                              onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
+                              className="flex items-center gap-2 mr-2 overflow-hidden cursor-pointer flex-grow"
+                            >
+                              <FileText size={14} className={isConfirmed ? "text-emerald-500 shrink-0" : "text-blue-500 shrink-0"} />
+                              <div className="flex flex-col overflow-hidden text-left">
+                                <span className="font-bold text-slate-700 truncate">{doc.name}</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-slate-400 shrink-0">({doc.size})</span>
+                                  {isConfirmed && <span className="text-[8px] font-black text-emerald-600 uppercase">● Đã xác nhận</span>}
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
+                                className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
+                              >
+                                Xem
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setPaymentDocs(paymentDocs.filter((_, i) => i !== idx))}
+                                className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewDoc({ ...doc, category: "payment" })}
-                              className="text-blue-600 hover:text-blue-700 font-bold px-1.5 py-1 rounded hover:bg-blue-50 cursor-pointer text-[10px]"
-                            >
-                              Xem
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => setPaymentDocs(paymentDocs.filter((_, i) => i !== idx))}
-                              className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+
+                          {/* AI Quality Check for Payment Documents */}
+                          {(() => {
+                            const declaredNum = Number((amountStr || "0").replace(/\D/g, ""));
+                            const analysis = getDocumentAnalysis(doc.name, "payment", declaredNum);
+                            const isMismatch = analysis.ocrAmount !== declaredNum;
+                            return (
+                              <div className="ml-1 bg-slate-50/60 rounded-xl p-3 border border-slate-100 space-y-2 text-[10px] text-left">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                  <span className="font-bold text-slate-500 flex items-center gap-1">
+                                    <Sparkles size={11} className="text-blue-500" />
+                                    Đối chiếu hóa đơn (OCR Smart Match)
+                                  </span>
+                                  <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] uppercase ${analysis.needRetake ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}>
+                                    {analysis.needRetake ? "⚠️ Hơi mờ" : "✓ Đạt yêu cầu"}
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-[9px] border-b border-slate-100/60 pb-1.5">
+                                  <div>
+                                    <span className="text-slate-400">Độ rõ nét: </span>
+                                    <strong className={analysis.needRetake ? "text-amber-600" : "text-emerald-600"}>{analysis.blurScore}% ({analysis.text})</strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Số hóa đơn VAT: </span>
+                                    <strong className="text-slate-700 font-mono">0081239</strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Hóa đơn thực tế: </span>
+                                    <strong className="text-blue-600 font-mono font-extrabold">{analysis.ocrAmount.toLocaleString("vi-VN")} đ</strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Số tiền khai báo: </span>
+                                    <strong className="text-slate-600 font-mono font-extrabold">{declaredNum.toLocaleString("vi-VN")} đ</strong>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-1.5">
+                                  <p className={`text-[9px] font-medium leading-relaxed p-1.5 rounded border ${
+                                    isMismatch 
+                                      ? "bg-red-50/50 border-red-100 text-red-700" 
+                                      : "bg-emerald-50/30 border-emerald-100 text-emerald-700"
+                                  }`}>
+                                    {analysis.msg}
+                                  </p>
+                                  
+                                  {isMismatch && (
+                                    <button
+                                      key={`btn-${doc.name}`}
+                                      type="button"
+                                      onClick={() => setAmountStr(analysis.ocrAmount.toLocaleString("vi-VN"))}
+                                      className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                                    >
+                                      ⚡ Sửa số tiền khai báo thành {analysis.ocrAmount.toLocaleString("vi-VN")} đ
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -1944,36 +2139,190 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                 </div>
               </div>
 
-              {/* View Full Claim Document Preview Action */}
-              <div className="bg-white rounded-2.5xl p-5 border border-slate-150 shadow-sm space-y-4">
-                <div className="flex items-start gap-3">
+              {/* Giấy yêu cầu bồi thường hiển thị trực tiếp trong màn hình */}
+              <div className="bg-white rounded-2.5xl p-5 border border-slate-150 shadow-sm space-y-4 text-left">
+                <div className="flex items-start gap-3 border-b border-slate-100 pb-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                     <FileText size={18} />
                   </div>
                   <div className="space-y-1">
                     <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                      Xác nhận giấy yêu cầu bồi thường
+                      Giấy xác nhận yêu cầu bồi thường
                     </h4>
                     <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                      Vui lòng kiểm tra lại thông tin chi tiết và đọc hết toàn bộ văn bản để có thể tick xác nhận yêu cầu bồi thường này.
+                      Vui lòng cuộn xem toàn bộ văn bản bồi thường dưới đây để mở khóa đồng ý & ký xác nhận.
                     </p>
                   </div>
                 </div>
 
-                {/* Text link to view full document */}
-                <div className="pl-13">
-                  <button
-                    type="button"
-                    onClick={() => setShowGycPreview(true)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Xem toàn bộ giấy yêu cầu bồi thường</span>
-                    <ArrowRight size={13} className="inline" />
-                  </button>
+                {/* Inline Scrollable Contract Agreement */}
+                <div 
+                  onScroll={(e) => {
+                    const target = e.currentTarget;
+                    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 45) {
+                      setHasReadGyc(true);
+                    }
+                  }}
+                  className="max-h-72 overflow-y-auto px-4 py-4 space-y-5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 relative scrollbar-thin scrollbar-thumb-slate-200"
+                >
+                  {/* Introduction */}
+                  <div className="text-center pb-2 border-b border-dashed border-slate-200">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">TỔNG CÔNG TY CỔ PHẦN BẢO HIỂM BƯU ĐIỆN (PTI)</p>
+                    <p className="text-[10px] font-black text-slate-700 uppercase tracking-wide mt-1">GIẤY YÊU CẦU BỒI THƯỜNG BẢO HIỂM SỨC KHỎE</p>
+                    <p className="text-[8px] text-slate-400 font-mono mt-0.5">Mã hồ sơ: CLM-{(selectedCard?.cardNumber || "PTI").substring(4)}-{new Date().getFullYear()}</p>
+                  </div>
+
+                  {/* Section 1: Thẻ bảo hiểm & Người yêu cầu */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                      I. THÔNG TIN KHÁCH HÀNG & THẺ BẢO HIỂM
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2.5 bg-white p-2.5 rounded-xl border border-slate-150 text-[9px] text-slate-600 font-semibold">
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Người được bảo hiểm</p>
+                        <p className="font-extrabold text-slate-800">{selectedCard?.name || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Số thẻ bảo hiểm (ID CARD)</p>
+                        <p className="font-mono font-extrabold text-blue-700">{selectedCard?.cardNumber || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Quan hệ với nhân viên</p>
+                        <p className="text-slate-800">{selectedCard?.relationship || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Đơn vị công tác</p>
+                        <p className="text-slate-800">{isCorporateMode ? "FPT SOFTWARE (Doanh nghiệp)" : "Cá nhân & Gia đình"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Chi tiết sự kiện điều trị */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                      II. THÔNG TIN SỰ KIỆN BẢO HIỂM & ĐIỀU TRỊ
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2.5 bg-white p-2.5 rounded-xl border border-slate-150 text-[9px] text-slate-600 font-semibold">
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Cơ sở y tế điều trị</p>
+                        <p className="font-extrabold text-slate-800">{hospital || "Tự điền thủ công"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Ngày bắt đầu điều trị</p>
+                        <p className="font-extrabold text-slate-800">{treatmentDate || "Chưa xác định"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Hình thức điều trị y khoa</p>
+                        <p className="font-extrabold text-blue-600">
+                          {treatmentType === "NgoaiTru" ? "Ngoại trú (Điều trị trong ngày)" : treatmentType === "NoiTru" ? "Nội trú (Nằm viện qua đêm)" : "Phẫu thuật y khoa"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Quyền lợi bảo hiểm</p>
+                        <p className="font-extrabold text-amber-600">{cause || "Chưa chọn"}</p>
+                      </div>
+                      <div className="col-span-2 pt-1.5 border-t border-slate-150">
+                        <p className="text-[8px] text-slate-400 uppercase font-bold">Số tiền yêu cầu bồi thường bảo hiểm</p>
+                        <p className="font-mono text-[11px] font-black text-red-600">{amountStr ? `${amountStr} VND` : "0 VND"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Người nhận thụ hưởng tài chính */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                      III. THÔNG TIN THỤ HƯỞNG TRỰC TIẾP
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-xl border border-slate-150 text-[8px] text-slate-600 font-semibold">
+                      <div className="col-span-1">
+                        <p className="text-[7px] text-slate-400 uppercase font-bold">Chủ tài khoản</p>
+                        <p className="font-extrabold text-slate-800">{bankOwner || "N/A"}</p>
+                      </div>
+                      <div className="col-span-1">
+                        <p className="text-[7px] text-slate-400 uppercase font-bold">Số tài khoản</p>
+                        <p className="font-mono font-extrabold text-slate-800">{bankAccount || "N/A"}</p>
+                      </div>
+                      <div className="col-span-1">
+                        <p className="text-[7px] text-slate-400 uppercase font-bold">Ngân hàng</p>
+                        <p className="font-extrabold text-slate-800">{bankName || "N/A"}</p>
+                      </div>
+                      <div className="col-span-3 pt-1.5 border-t border-slate-150 text-[8px] text-amber-700 flex items-center gap-1 leading-normal text-left">
+                        <Lock size={9} />
+                        <span>PTI chi trả trực tiếp cho NĐBH. HR công ty cam kết không can thiệp dòng tiền chi trả này.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Danh mục chứng từ điện tử */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1 h-3 bg-blue-600 rounded-xs" />
+                      IV. HỒ SƠ CHỨNG TỪ SỐ ĐÃ ĐÍNH KÈM
+                    </h4>
+                    <div className="space-y-1 bg-white p-2.5 rounded-xl border border-slate-150 text-[8px] text-slate-600 font-semibold leading-normal text-left">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">1. Chứng từ y tế:</span>
+                        <span className="text-slate-800">{medicalDocs.length > 0 ? `${medicalDocs.length} tệp tin` : "❌ Chưa đính kèm"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">2. Chứng từ thanh toán:</span>
+                        <span className="text-slate-800">{paymentDocs.length > 0 ? `${paymentDocs.length} tệp tin` : "❌ Chưa đính kèm"}</span>
+                      </div>
+                      {cause === "Tai nạn" && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">3. Biên bản tai nạn:</span>
+                          <span className="text-slate-800">{accidentDocs.length > 0 ? "✓ Đã tải" : "❌ Thiếu biên bản bắt buộc"}</span>
+                        </div>
+                      )}
+                      {treatmentType === "NoiTru" && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">4. Giấy ra viện + Tóm tắt:</span>
+                          <span className="text-slate-800">{hospitalReleaseDocs.length > 0 ? "✓ Đã tải" : "❌ Thiếu giấy tờ ra viện"}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section 5: Điều khoản Cam kết chung */}
+                  <div className="space-y-1.5 border-t border-slate-150 pt-3 text-left">
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase">V. CAM KẾT VÀ QUY TẮC KHAI BÁO</h4>
+                    <p className="text-[9px] text-slate-500 leading-normal font-medium">
+                      1. Tôi cam kết các thông tin khai báo trên đây và các tài liệu, hóa đơn điện tử, chứng từ đính kèm là hoàn toàn trung thực, hợp lệ và hợp pháp.
+                    </p>
+                    <p className="text-[9px] text-slate-500 leading-normal font-medium">
+                      2. Tôi hiểu rằng việc cố ý cung cấp thông tin sai lệch hoặc hóa đơn giả mạo sẽ dẫn đến việc từ chối bồi thường và chịu trách nhiệm pháp lý theo quy định của pháp luật.
+                    </p>
+                    <p className="text-[9px] text-slate-500 leading-normal font-medium">
+                      3. Tôi đồng ý ủy quyền cho Tổng công ty Cổ phần Bảo hiểm Bưu điện (PTI) được phép làm việc với các cơ sở y tế điều trị để xác minh các thông tin liên quan đến bệnh án và viện phí phục vụ công tác giám định.
+                    </p>
+                  </div>
+
+                  {/* Signature block */}
+                  <div className="border-t border-slate-150 pt-2 flex justify-between text-[8px] text-slate-400">
+                    <div>
+                      <p className="uppercase font-bold text-center">ĐẠI DIỆN PTI CARE</p>
+                      <p className="font-mono text-center mt-3">ELECTRONIC STAMP</p>
+                    </div>
+                    <div>
+                      <p className="uppercase font-bold text-center">KHÁCH HÀNG KÝ SỐ</p>
+                      <p className="font-mono text-center text-emerald-600 mt-1 font-bold">SECURE DIGISIGN ACTIVE</p>
+                      <p className="text-center font-mono mt-0.5">Xác thực: {verificationMethod || "FaceID / OTP"}</p>
+                    </div>
+                  </div>
                 </div>
 
+                {/* Unscrolled Warning or Scrolled confirmation */}
+                {!hasReadGyc && (
+                  <p className="text-[9px] text-center font-bold text-amber-600 bg-amber-50 py-1.5 rounded-lg border border-amber-100">
+                    👇 Vui lòng cuộn xem hết Giấy yêu cầu bồi thường ở trên để mở khóa Xác nhận
+                  </p>
+                )}
+
                 {/* Confirmation Checkbox */}
-                <div className="pl-13 pt-1">
+                <div className="pt-1">
                   <label className="flex items-start gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -1981,7 +2330,7 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                       disabled={!hasReadGyc}
                       onChange={(e) => {
                         if (!hasReadGyc) {
-                          alert("Vui lòng bấm 'Xem toàn bộ giấy yêu cầu bồi thường' và đọc hết văn bản để có thể tick vào xác nhận.");
+                          alert("Vui lòng cuộn đọc hết toàn bộ nội dung Giấy yêu cầu bồi thường ở phía trên để mở khóa ô chọn.");
                           return;
                         }
                         setAgreeTerms(e.target.checked);
@@ -1994,11 +2343,6 @@ export default function ClaimWizard({ cards, onBack, onSubmitSuccess, isCorporat
                     />
                     <span className={`text-[10px] font-bold leading-normal ${hasReadGyc ? "text-slate-700" : "text-slate-400"}`}>
                       Tôi xác nhận đã đọc, hiểu rõ và đồng ý với tất cả các thông tin trong Giấy yêu cầu bồi thường.
-                      {!hasReadGyc && (
-                        <span className="block text-[9px] font-medium text-amber-600 mt-1">
-                          ⚠️ Vui lòng mở và đọc hết văn bản để mở khóa xác nhận.
-                        </span>
-                      )}
                     </span>
                   </label>
                 </div>

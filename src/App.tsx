@@ -4,7 +4,8 @@ import {
   CreditCard, Shield, Settings, Info, Search, HelpCircle, LogOut, 
   ArrowUpRight, Check, AlertCircle, FileText, ChevronRight, X, Clock, 
   PlusCircle, RefreshCw, CheckCircle2, ChevronDown, CheckCircle,
-  ChevronLeft, Users, ArrowRight, Fingerprint, Smartphone, Lock
+  ChevronLeft, Users, ArrowRight, Fingerprint, Smartphone, Lock,
+  Plus, Globe
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -39,8 +40,10 @@ export default function App() {
   const [claims, setClaims] = useState<ClaimRequest[]>([]);
 
   // NAVIGATION & PORTAL STATES
-  const [activeTab, setActiveTab] = useState<"home" | "roster" | "account" | "news" | "notif" | "chat">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "claims" | "contracts" | "account" | "chat">("home");
   const [currentWizard, setCurrentWizard] = useState(false);
+  const [draftClaimForWizard, setDraftClaimForWizard] = useState<ClaimRequest | null>(null);
+  const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [currentQuickAction, setCurrentQuickAction] = useState<"payment" | "profile" | null>(null);
 
   // MODAL & EXPAND STATES
@@ -50,7 +53,7 @@ export default function App() {
 
   // MOCK CAROUSEL INDEX
   const [cardIndex, setCardIndex] = useState(0);
-  const [homeClaimFilter, setHomeClaimFilter] = useState<"Tất cả" | "Nháp" | "Chờ duyệt" | "Bổ sung chứng từ" | "Đã thanh toán" | "Bị từ chối">("Tất cả");
+  const [homeClaimFilter, setHomeClaimFilter] = useState<string>("Tất cả");
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const scrollToIndex = (index: number) => {
@@ -84,6 +87,7 @@ export default function App() {
   const [otpVerifyCode, setOtpVerifyCode] = useState(["", "", "", "", "", ""]);
   const [isVerifyingState, setIsVerifyingState] = useState(false);
   const [benefitTab, setBenefitTab] = useState<"naitru" | "ngoaitru" | "nhakhoa" | "thaisan">("naitru");
+  const [contractSubTab, setContractSubTab] = useState<"my-contract" | "relatives-contract">("my-contract");
 
   useEffect(() => {
     if (verificationStage === "face" && isVerifyingState) {
@@ -280,9 +284,11 @@ export default function App() {
                   cards={cards}
                   isCorporateMode={user.isCorporate}
                   corporateEmployee={corporateEmployeeSelectedForWizard}
+                  draftClaim={draftClaimForWizard || undefined}
                   onBack={() => {
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
+                    setDraftClaimForWizard(null);
                   }}
                   onSubmitSuccess={(newClaim) => {
                     handleAddNewClaim(newClaim);
@@ -292,6 +298,7 @@ export default function App() {
                     setOtpVerifyCode(["", "", "", "", "", ""]);
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
+                    setDraftClaimForWizard(null);
                     setActiveTab("home");
                   }}
                 />
@@ -555,11 +562,16 @@ export default function App() {
                       </div>
                       
                       <button 
-                        onClick={handleLogout}
-                        title="Đăng xuất"
-                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                        onClick={() => setShowNotificationsSheet(true)}
+                        title="Thông báo"
+                        className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/50 text-slate-600 hover:text-blue-600 transition-all cursor-pointer"
                       >
-                        <LogOut size={15} />
+                        <Bell size={16} className="stroke-[2.2]" />
+                        {unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full ring-2 ring-white">
+                            {unreadCount}
+                          </span>
+                        )}
                       </button>
                     </div>
 
@@ -743,104 +755,120 @@ export default function App() {
                           );
                         }
 
-                        return filteredClaims.map((claim) => {
-                          let statusColor = "";
-                          let statusText = "";
-                          
-                          if (claim.status === "ChoDuyet") {
-                            statusColor = "bg-amber-50 text-amber-600 border-amber-100";
-                            statusText = "Chờ duyệt";
-                          } else if (claim.status === "YeuCauBoSung") {
-                            statusColor = "bg-orange-50 text-orange-600 border-orange-100 animate-pulse";
-                            statusText = "Yêu cầu bổ sung";
-                          } else if (claim.status === "DaDuyet") {
-                            statusColor = "bg-green-50 text-green-600 border-green-100";
-                            statusText = "Đã chi trả";
-                          } else if (claim.status === "TuChoi") {
-                            statusColor = "bg-red-50 text-red-600 border-red-100";
-                            statusText = "Từ chối";
-                          } else {
-                            statusColor = "bg-slate-100 text-slate-500 border-slate-200";
-                            statusText = "Bản nháp";
-                          }
+                        // Slice to only show the most recent 3 claims
+                        const limitedClaims = filteredClaims.slice(0, 3);
 
-                          let treatmentTypeText = "";
-                          if (claim.treatmentType === "NoiTru") {
-                            treatmentTypeText = "Nội trú";
-                          } else if (claim.treatmentType === "NgoaiTru") {
-                            treatmentTypeText = "Ngoại trú";
-                          } else {
-                            treatmentTypeText = "Nha khoa";
-                          }
+                        return (
+                          <>
+                            {limitedClaims.map((claim) => {
+                              let statusColor = "";
+                              let statusText = "";
+                              
+                              if (claim.status === "ChoDuyet") {
+                                statusColor = "bg-amber-50 text-amber-600 border-amber-100";
+                                statusText = "Chờ duyệt";
+                              } else if (claim.status === "YeuCauBoSung") {
+                                statusColor = "bg-orange-50 text-orange-600 border-orange-100 animate-pulse";
+                                statusText = "Yêu cầu bổ sung";
+                              } else if (claim.status === "DaDuyet") {
+                                statusColor = "bg-green-50 text-green-600 border-green-100";
+                                statusText = "Đã chi trả";
+                              } else if (claim.status === "TuChoi") {
+                                statusColor = "bg-red-50 text-red-600 border-red-100";
+                                statusText = "Từ chối";
+                              } else {
+                                statusColor = "bg-slate-100 text-slate-500 border-slate-200";
+                                statusText = "Bản nháp";
+                              }
 
-                          return (
-                            <div
-                              key={claim.id}
-                              onClick={() => setSelectedClaim(claim)}
-                              className={`rounded-2xl p-4 border transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden ${
-                                claim.status === "YeuCauBoSung"
-                                  ? "bg-orange-50/60 border-orange-400 shadow-[0_4px_16px_rgba(249,115,22,0.12)] ring-1 ring-orange-400/30"
-                                  : "bg-white/80 hover:bg-white border-slate-100/80 shadow-sm hover:shadow-md"
-                              }`}
-                            >
-                              {/* Soft side gradient accent based on status */}
-                              <div className={`absolute top-0 bottom-0 left-0 w-1.5 ${
-                                claim.status === "DaDuyet" ? "bg-green-500" :
-                                claim.status === "YeuCauBoSung" ? "bg-orange-500" :
-                                claim.status === "ChoDuyet" ? "bg-amber-500" :
-                                claim.status === "TuChoi" ? "bg-red-500" : "bg-slate-400"
-                              }`} />
+                              let treatmentTypeText = "";
+                              if (claim.treatmentType === "NoiTru") {
+                                treatmentTypeText = "Nội trú";
+                              } else if (claim.treatmentType === "NgoaiTru") {
+                                treatmentTypeText = "Ngoại trú";
+                              } else {
+                                treatmentTypeText = "Nha khoa";
+                              }
 
-                              <div className="flex justify-between items-start pl-1">
-                                <div className="space-y-1 max-w-[65%]">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-[10px] font-bold font-mono text-slate-400">#{claim.id}</span>
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
-                                      {statusText}
-                                    </span>
-                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50/50 text-blue-600">
-                                      {treatmentTypeText}
-                                    </span>
+                              return (
+                                <div
+                                  key={claim.id}
+                                  onClick={() => setSelectedClaim(claim)}
+                                  className={`rounded-2xl p-4 border transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden ${
+                                    claim.status === "YeuCauBoSung"
+                                      ? "bg-orange-50/60 border-orange-400 shadow-[0_4px_16px_rgba(249,115,22,0.12)] ring-1 ring-orange-400/30"
+                                      : "bg-white/80 hover:bg-white border-slate-100/80 shadow-sm hover:shadow-md"
+                                  }`}
+                                >
+                                  {/* Soft side gradient accent based on status */}
+                                  <div className={`absolute top-0 bottom-0 left-0 w-1.5 ${
+                                    claim.status === "DaDuyet" ? "bg-green-500" :
+                                    claim.status === "YeuCauBoSung" ? "bg-orange-500" :
+                                    claim.status === "ChoDuyet" ? "bg-amber-500" :
+                                    claim.status === "TuChoi" ? "bg-red-500" : "bg-slate-400"
+                                  }`} />
+
+                                  <div className="flex justify-between items-start pl-1">
+                                    <div className="space-y-1 max-w-[65%]">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[10px] font-bold font-mono text-slate-400">#{claim.id}</span>
+                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+                                          {statusText}
+                                        </span>
+                                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50/50 text-blue-600">
+                                          {treatmentTypeText}
+                                        </span>
+                                      </div>
+                                      <h4 className="text-xs font-bold text-slate-800 font-display mt-1.5 leading-tight group-hover:text-blue-600 transition-colors">
+                                        {claim.cause || "Không rõ nguyên nhân"}
+                                      </h4>
+                                      <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+                                        👤 {claim.insuredName}
+                                      </p>
+                                      <p className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                                        🏢 {claim.hospital || "Chưa chọn cơ sở y tế"}
+                                      </p>
+                                    </div>
+
+                                    <div className="text-right flex flex-col justify-between items-end h-full">
+                                      <div>
+                                        <p className="text-xs font-extrabold text-blue-600">
+                                          {claim.amount ? claim.amount.toLocaleString("vi-VN") : "0"}đ
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">{claim.date.split(" ")[0]}</p>
+                                      </div>
+
+                                      {claim.status === "Nhap" && (
+                                        <span className="text-[8px] font-extrabold bg-slate-100 text-slate-500 border border-slate-200/50 px-1.5 py-0.5 rounded-lg mt-3 flex items-center gap-1">
+                                          ✏️ Nhấn để tiếp tục
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <h4 className="text-xs font-bold text-slate-800 font-display mt-1.5 leading-tight group-hover:text-blue-600 transition-colors">
-                                    {claim.cause || "Không rõ nguyên nhân"}
-                                  </h4>
-                                  <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
-                                    👤 {claim.insuredName}
-                                  </p>
-                                  <p className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
-                                    🏢 {claim.hospital || "Chưa chọn cơ sở y tế"}
-                                  </p>
-                                </div>
 
-                                <div className="text-right flex flex-col justify-between items-end h-full">
-                                  <div>
-                                    <p className="text-xs font-extrabold text-blue-600">
-                                      {claim.amount ? claim.amount.toLocaleString("vi-VN") : "0"}đ
-                                    </p>
-                                    <p className="text-[9px] text-slate-400 mt-1 font-medium">{claim.date.split(" ")[0]}</p>
-                                  </div>
-
-                                  {claim.status === "Nhap" && (
-                                    <span className="text-[8px] font-extrabold bg-slate-100 text-slate-500 border border-slate-200/50 px-1.5 py-0.5 rounded-lg mt-3 flex items-center gap-1">
-                                      ✏️ Nhấn để tiếp tục
-                                    </span>
+                                  {/* Interactive alert prompt inside card for supplement action */}
+                                  {claim.status === "YeuCauBoSung" && (
+                                    <div className="mt-2.5 pt-2 border-t border-orange-200 flex items-center justify-between text-[9px] text-orange-600 font-extrabold pl-1">
+                                      <span className="flex items-center gap-1 text-orange-600">
+                                        <AlertCircle size={10} className="animate-bounce" /> HÀNH ĐỘNG KHẨN: Click để bổ sung chứng từ ngay
+                                      </span>
+                                      <ChevronRight size={12} className="text-orange-500" />
+                                    </div>
                                   )}
                                 </div>
-                              </div>
-
-                              {/* Interactive alert prompt inside card for supplement action */}
-                              {claim.status === "YeuCauBoSung" && (
-                                <div className="mt-2.5 pt-2 border-t border-orange-200 flex items-center justify-between text-[9px] text-orange-600 font-extrabold pl-1">
-                                  <span className="flex items-center gap-1 text-orange-600">
-                                    <AlertCircle size={10} className="animate-bounce" /> HÀNH ĐỘNG KHẨN: Click để bổ sung chứng từ ngay
-                                  </span>
-                                  <ChevronRight size={12} className="text-orange-500" />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        });
+                              );
+                            })}
+                            
+                            {filteredClaims.length > 3 && (
+                              <button
+                                onClick={() => setActiveTab("claims")}
+                                className="w-full mt-2 py-3 bg-blue-50/50 hover:bg-blue-50 border border-blue-100/50 rounded-2xl text-[11px] font-bold text-blue-600 transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                              >
+                                Xem tất cả {filteredClaims.length} hồ sơ bồi thường <ChevronRight size={14} />
+                              </button>
+                            )}
+                          </>
+                        );
                       })()}
                     </div>
                   </div>
@@ -848,8 +876,6 @@ export default function App() {
                 </motion.div>
               )
               )}
-
-              {/* TAB: ROSTER (CORPORATE MODE ONLY) */}
               {activeTab === "roster" && user?.isCorporate && (
                 <motion.div
                   key="corporate-roster-tab"
@@ -901,62 +927,90 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* TAB 2: ACCOUNT & CLAIMS TRACKING */}
-              {activeTab === "account" && (
+              {/* TAB: BỒI THƯỜNG (CLAIMS) */}
+              {activeTab === "claims" && (
                 <motion.div
-                  key="account-tab"
+                  key="claims-tab"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-3 pb-6 space-y-4"
+                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-4 pb-6 space-y-4"
                 >
-                  {/* Profile Summary Card */}
-                  <div className="glass-panel rounded-3xl p-4 border border-white/60 shadow-sm flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center text-white font-display font-extrabold text-lg shadow-md shadow-blue-500/10">
-                      AN
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base font-display font-bold text-slate-800 uppercase tracking-tight">Hồ sơ bồi thường</h2>
+                      <p className="text-[10px] text-slate-400 font-medium">Quản lý và theo dõi tiến độ chi trả của bạn</p>
                     </div>
-                    <div className="space-y-0.5">
-                      <h3 className="text-sm font-bold text-slate-800">{user.name}</h3>
-                      <p className="text-[10px] text-slate-400 font-mono">CCCD: {user.cccd}</p>
-                      <p className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block">Hội viên Vàng PTI</p>
-                    </div>
-                  </div>
-
-                  {/* Quick Shortcuts (Moved from Home Screen) */}
-                  <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => setCurrentQuickAction("payment")}
-                      className="glass-panel bg-white/40 hover:bg-white border border-white/60 p-3 rounded-2xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
+                      onClick={() => {
+                        setDraftClaimForWizard(null);
+                        setCurrentWizard(true);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-2 rounded-xl transition-all shadow-sm shadow-blue-500/10 flex items-center gap-1 active:scale-95 cursor-pointer"
                     >
-                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm group-hover:scale-105 transition-transform">
-                        <CreditCard size={15} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Đóng phí bảo hiểm</span>
-                    </button>
-
-                    <button
-                      onClick={() => setCurrentQuickAction("profile")}
-                      className="glass-panel bg-white/40 hover:bg-white border border-white/60 p-3 rounded-2xl text-center shadow-sm hover:shadow transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm group-hover:scale-105 transition-transform">
-                        <Settings size={15} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Điều chỉnh thông tin</span>
+                      <Plus size={12} className="stroke-[2.5]" /> Tạo yêu cầu
                     </button>
                   </div>
 
-                  {/* Claims List Section */}
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-end px-1">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lịch sử yêu cầu quyền lợi</h3>
-                      <span className="text-[10px] text-slate-400 font-semibold">{claims.length} hồ sơ</span>
-                    </div>
+                  {/* Filter Pills for Claims Tab */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-5 px-5">
+                    {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Nháp", "Đã hoàn tất", "Từ chối"] as const).map((filter) => {
+                      const isSelected = homeClaimFilter === filter;
+                      const count = claims.filter(c => {
+                        if (filter === "Tất cả") return true;
+                        if (filter === "Nháp") return c.status === "Nhap";
+                        if (filter === "Chờ duyệt") return c.status === "ChoDuyet";
+                        if (filter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
+                        if (filter === "Đã hoàn tất") return c.status === "DaDuyet";
+                        if (filter === "Từ chối") return c.status === "TuChoi";
+                        return false;
+                      }).length;
 
-                    <div className="space-y-3">
-                      {claims.map((claim) => {
+                      return (
+                        <button
+                          key={filter}
+                          onClick={() => setHomeClaimFilter(filter)}
+                          className={`px-3 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-slate-800 text-white shadow-sm"
+                              : "bg-white/80 text-slate-500 hover:bg-white border border-slate-100"
+                          }`}
+                        >
+                          <span>{filter}</span>
+                          <span className={`px-1.5 py-0.2 rounded-md text-[8px] font-extrabold ${
+                            isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Claims List */}
+                  <div className="space-y-3.5">
+                    {(() => {
+                      const filtered = claims.filter(c => {
+                        if (homeClaimFilter === "Tất cả") return true;
+                        if (homeClaimFilter === "Nháp") return c.status === "Nhap";
+                        if (homeClaimFilter === "Chờ duyệt") return c.status === "ChoDuyet";
+                        if (homeClaimFilter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
+                        if (homeClaimFilter === "Đã hoàn tất") return c.status === "DaDuyet";
+                        if (homeClaimFilter === "Từ chối") return c.status === "TuChoi";
+                        return false;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="bg-white/50 border border-slate-100 rounded-2xl p-8 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Không tìm thấy hồ sơ bồi thường nào phù hợp.</p>
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((claim) => {
                         let statusColor = "";
                         let statusText = "";
-                        
                         if (claim.status === "ChoDuyet") {
                           statusColor = "bg-amber-50 text-amber-600 border-amber-100";
                           statusText = "Chờ duyệt";
@@ -965,344 +1019,438 @@ export default function App() {
                           statusText = "Yêu cầu bổ sung";
                         } else if (claim.status === "DaDuyet") {
                           statusColor = "bg-green-50 text-green-600 border-green-100";
-                          statusText = "Đã chi trả";
-                        } else {
+                          statusText = "Đã hoàn tất";
+                        } else if (claim.status === "TuChoi") {
                           statusColor = "bg-red-50 text-red-600 border-red-100";
                           statusText = "Từ chối";
+                        } else {
+                          statusColor = "bg-slate-100 text-slate-500 border-slate-200";
+                          statusText = "Bản nháp";
+                        }
+
+                        let treatmentTypeText = "";
+                        if (claim.treatmentType === "NoiTru") {
+                          treatmentTypeText = "Nội trú";
+                        } else if (claim.treatmentType === "NgoaiTru") {
+                          treatmentTypeText = "Ngoại trú";
+                        } else {
+                          treatmentTypeText = "Nha khoa";
                         }
 
                         return (
                           <div
                             key={claim.id}
-                            onClick={() => setSelectedClaim(claim)}
-                            className={`rounded-2xl p-4 border transition-all cursor-pointer flex flex-col justify-between ${
-                              claim.status === "YeuCauBoSung"
-                                ? "bg-orange-50/60 border-orange-400 shadow-[0_4px_16px_rgba(249,115,22,0.12)] ring-1 ring-orange-400/30"
-                                : "bg-white/60 hover:bg-white border-slate-100 shadow-sm"
-                            }`}
+                            className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden"
                           >
+                            <div className="absolute top-0 bottom-0 left-0 w-1 bg-slate-200" />
+                            
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-[10px] font-bold font-mono text-slate-400">#{claim.id}</span>
                                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
                                     {statusText}
                                   </span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-50 bg-blue-50/50 text-blue-600">
+                                    {treatmentTypeText}
+                                  </span>
                                 </div>
-                                <h4 className="text-xs font-bold text-slate-800 font-display mt-1">
-                                  {claim.insuredName}
+                                <h4 
+                                  onClick={() => setSelectedClaim(claim)}
+                                  className="text-xs font-bold text-slate-800 font-display mt-2 leading-tight hover:text-blue-600 cursor-pointer transition-colors"
+                                >
+                                  {claim.cause || "Điều trị sức khỏe"}
                                 </h4>
-                                <p className="text-[10px] font-medium text-slate-500 truncate max-w-[220px]">
-                                  {claim.hospital}
+                                <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+                                  👤 {claim.insuredName}
+                                </p>
+                                <p className="text-[10px] font-medium text-slate-400">
+                                  🏢 {claim.hospital || "Chưa chọn cơ sở y tế"}
                                 </p>
                               </div>
 
-                              <div className="text-right">
-                                <p className="text-xs font-extrabold text-blue-600">
-                                  {claim.amount.toLocaleString("vi-VN")}đ
-                                </p>
-                                <p className="text-[9px] text-slate-400 mt-0.5">{claim.date.split(" ")[0]}</p>
+                              <div className="text-right flex flex-col justify-between items-end">
+                                <div>
+                                  <p className="text-xs font-extrabold text-blue-600">
+                                    {claim.amount ? claim.amount.toLocaleString("vi-VN") : "0"}đ
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 mt-1 font-medium">{claim.date.split(" ")[0]}</p>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Extra warning message inside card for quick supplement action */}
-                            {claim.status === "YeuCauBoSung" && (
-                              <div className="mt-2.5 pt-2 border-t border-orange-200 flex items-center justify-between text-[9px] text-orange-600 font-extrabold">
-                                <span className="flex items-center gap-1 text-orange-600">
-                                  <AlertCircle size={10} className="animate-bounce" /> HÀNH ĐỘNG KHẨN: Click để bổ sung chứng từ ngay
-                                </span>
-                                <ChevronRight size={12} className="text-orange-500" />
-                              </div>
-                            )}
+                            {/* Custom Action Buttons based on statuses */}
+                            <div className="mt-3.5 pt-2 border-t border-slate-50 flex gap-2 justify-end">
+                              {claim.status === "Nhap" && (
+                                <button
+                                  onClick={() => {
+                                    setDraftClaimForWizard(claim);
+                                    setCurrentWizard(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  ✏️ Làm tiếp
+                                </button>
+                              )}
+                              {claim.status === "YeuCauBoSung" && (
+                                <button
+                                  onClick={() => setSelectedClaim(claim)}
+                                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1 animate-pulse"
+                                >
+                                  📎 Bổ sung chứng từ
+                                </button>
+                              )}
+                              {claim.status === "TuChoi" && (
+                                <button
+                                  onClick={() => {
+                                    setDraftClaimForWizard(claim);
+                                    setCurrentWizard(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  🔄 Tạo lại yêu cầu
+                                </button>
+                              )}
+                              <button
+                                onClick={() => setSelectedClaim(claim)}
+                                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-[10px] rounded-xl transition-colors cursor-pointer"
+                              >
+                                Xem chi tiết
+                              </button>
+                            </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  </div>
-
-                </motion.div>
-              )}
-
-              {/* TAB 3: LỊCH SỬ BẢO HIỂM */}
-              {activeTab === "news" && (
-                <motion.div
-                  key="insurance-history-tab"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-3 pb-6 space-y-4 animate-fadeIn"
-                >
-                  <div className="flex justify-between items-center px-1">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lịch sử & Quyền lợi Bảo hiểm</h3>
-                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Đang hiệu lực</span>
-                  </div>
-
-                  {/* 1. QUẢN LÝ HỢP ĐỒNG */}
-                  <div className="glass-panel rounded-3xl p-4 border border-white/60 shadow-sm space-y-3.5 bg-gradient-to-br from-white/80 via-white/50 to-blue-50/10">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">QUẢN LÝ HỢP ĐỒNG</span>
-                        <h4 className="text-xs font-bold text-slate-800 font-display">Hợp đồng PTI Care Cá nhân</h4>
-                        <p className="text-[10px] font-mono font-medium text-slate-500">Mã HĐ: PTI-CON-9912</p>
-                      </div>
-                      <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-                        Đang bảo hiểm
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
-                      <div>
-                        <span className="text-slate-400 font-semibold block">Ngày bắt đầu:</span>
-                        <span className="font-bold text-slate-700">01/01/2026</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 font-semibold block">Ngày kết thúc:</span>
-                        <span className="font-bold text-slate-700">31/12/2026</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => alert("Đang tải xuống Giấy chứng nhận bảo hiểm điện tử...")}
-                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-100 text-slate-700 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
-                      >
-                        <FileText size={11} className="text-blue-500" />
-                        Chứng nhận BH
-                      </button>
-                      <button 
-                        onClick={() => alert("Đang mở quy tắc bảo hiểm sức khỏe PTI Care...")}
-                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-100 text-slate-700 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
-                      >
-                        <ArrowUpRight size={11} className="text-blue-500" />
-                        Quy tắc BH
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 2. DANH SÁCH GÓI BẢO HIỂM */}
-                  <div className="space-y-2">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Danh sách gói bảo hiểm hoạt động</span>
-                    <div className="space-y-2">
-                      <div className="bg-white/60 border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100/40">
-                            <Shield size={14} />
-                          </div>
-                          <div>
-                            <h5 className="text-xs font-bold text-slate-800">PTI Care Sức khỏe Vàng</h5>
-                            <p className="text-[9px] text-slate-400 font-medium">Bảo lãnh nội trú & ngoại trú cao cấp</p>
-                          </div>
-                        </div>
-                        <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Gói chính</span>
-                      </div>
-
-                      <div className="bg-white/60 border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100/40">
-                            <Sparkles size={14} />
-                          </div>
-                          <div>
-                            <h5 className="text-xs font-bold text-slate-800">Bảo hiểm Tai nạn hộ gia đình 24/7</h5>
-                            <p className="text-[9px] text-slate-400 font-medium">Mức trách nhiệm 50.000.000đ/vụ</p>
-                          </div>
-                        </div>
-                        <span className="text-[8px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Gói bổ sung</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. TRA CỨU QUYỀN LỢI TỰ ĐỘNG */}
-                  <div className="bg-white/80 border border-slate-100 rounded-3xl p-4 shadow-sm space-y-3.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">TRA CỨU HẠN MỨC QUYỀN LỢI</span>
-                    
-                    {/* Inner subtabs */}
-                    <div className="grid grid-cols-4 gap-1 bg-slate-100/80 p-1 rounded-xl">
-                      {[
-                        { id: "naitru", label: "Nội trú" },
-                        { id: "ngoaitru", label: "Ngoại trú" },
-                        { id: "nhakhoa", label: "Nha khoa" },
-                        { id: "thaisan", label: "Thai sản" }
-                      ].map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => setBenefitTab(t.id as any)}
-                          className={`py-1.5 rounded-lg text-[9px] font-bold text-center cursor-pointer transition-all ${
-                            benefitTab === t.id
-                              ? "bg-white text-blue-600 shadow-sm"
-                              : "text-slate-500 hover:text-slate-800"
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Benefit Details Container */}
-                    <div className="space-y-3 pt-1">
-                      {benefitTab === "naitru" && (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-end">
-                            <div className="space-y-0.5">
-                              <p className="text-[10px] text-slate-400 font-semibold">Quyền lợi Điều trị nội trú do ốm bệnh/tai nạn</p>
-                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 250,000,000đ / năm</p>
-                            </div>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="space-y-1">
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div className="bg-blue-600 h-full rounded-full" style={{ width: "5%" }} />
-                            </div>
-                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                              <span>Đã dùng: 12,500,000đ (5%)</span>
-                              <span>Còn lại: 237,500,000đ</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
-                            <p>• <span className="font-bold text-slate-700">Tiền giường & phòng:</span> Tối đa 2.500.000đ/ngày (lên tới 60 ngày/năm)</p>
-                            <p>• <span className="font-bold text-slate-700">Đồng chi trả:</span> 100% tại bệnh viện công; 80% tại bệnh viện tư nhân/quốc tế</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {benefitTab === "ngoaitru" && (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-end">
-                            <div className="space-y-0.5">
-                              <p className="text-[10px] text-slate-400 font-semibold">Quyền lợi Điều trị ngoại trú (Khám, thuốc men)</p>
-                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 15,000,000đ / năm</p>
-                            </div>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="space-y-1">
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div className="bg-amber-500 h-full rounded-full" style={{ width: "16%" }} />
-                            </div>
-                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                              <span>Đã dùng: 2,400,000đ (16%)</span>
-                              <span>Còn lại: 12,600,000đ</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
-                            <p>• <span className="font-bold text-slate-700">Hạn mức / lần khám:</span> Tối đa 1.500.000đ/lần khám (tối đa 10 lần/năm)</p>
-                            <p>• <span className="font-bold text-slate-700">Thuốc theo đơn:</span> Thanh toán 100% theo hóa đơn VAT hợp lệ</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {benefitTab === "nhakhoa" && (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-end">
-                            <div className="space-y-0.5">
-                              <p className="text-[10px] text-slate-400 font-semibold">Chăm sóc & Điều trị răng</p>
-                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 5,000,000đ / năm</p>
-                            </div>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="space-y-1">
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div className="bg-slate-300 h-full rounded-full" style={{ width: "0%" }} />
-                            </div>
-                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                              <span>Đã dùng: 0đ (0%)</span>
-                              <span>Còn lại: 5,000,000đ</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
-                            <p>• <span className="font-bold text-slate-700">Phạm vi bảo hiểm:</span> Khám răng, cạo vôi răng, trám răng, chữa tủy răng</p>
-                            <p>• <span className="font-bold text-slate-700">Thời gian chờ:</span> Áp dụng thời gian chờ 30 ngày kể từ ngày đóng phí</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {benefitTab === "thaisan" && (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-end">
-                            <div className="space-y-0.5">
-                              <p className="text-[10px] text-slate-400 font-semibold">Chăm sóc Thai sản (Sinh thường, sinh mổ)</p>
-                              <p className="text-xs font-bold text-slate-700">Hạn mức tối đa: 50,000,000đ / năm</p>
-                            </div>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="space-y-1">
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                              <div className="bg-purple-500 h-full rounded-full" style={{ width: "0%" }} />
-                            </div>
-                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                              <span>Đã dùng: 0đ (0%)</span>
-                              <span>Còn lại: 50,000,000đ (Chưa kích hoạt)</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-2.5 rounded-xl text-[9px] text-slate-500 leading-normal space-y-1 border border-slate-100/50">
-                            <p>• <span className="font-bold text-slate-700">Lưu ý thời gian chờ:</span> Thai sản áp dụng thời gian chờ 270 ngày kể từ ngày kích hoạt quyền lợi bổ sung</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      });
+                    })()}
                   </div>
                 </motion.div>
               )}
 
-              {/* TAB 4: NOTIFICATIONS */}
-              {activeTab === "notif" && (
+              {/* TAB: HỢP ĐỒNG BẢO HIỂM (CONTRACTS) */}
+              {activeTab === "contracts" && (
                 <motion.div
-                  key="notif-tab"
+                  key="contracts-tab"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-3 pb-6 space-y-3"
+                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-4 pb-6 space-y-4"
                 >
-                  <div className="flex justify-between items-center px-1">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hộp thư thông báo</h3>
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={() => setNotifications(notifications.map(n => ({...n, read: true})))}
-                        className="text-[10px] text-blue-600 font-bold hover:underline"
-                      >
-                        Đọc tất cả
-                      </button>
-                    )}
+                  <div className="space-y-1">
+                    <h2 className="text-base font-display font-bold text-slate-800 uppercase tracking-tight">Hợp đồng bảo hiểm</h2>
+                    <p className="text-[10px] text-slate-400 font-medium">Chi tiết quyền lợi & trạng thái thanh toán hợp đồng</p>
                   </div>
 
-                  <div className="space-y-2.5">
-                    {notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        onClick={() => {
-                          // Mark as read
-                          setNotifications(notifications.map(n => n.id === notif.id ? {...n, read: true} : n));
-                          if (notif.claimId) {
-                            const foundClaim = claims.find(c => c.id === notif.claimId);
-                            if (foundClaim) setSelectedClaim(foundClaim);
-                          }
-                        }}
-                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
-                          notif.read 
-                            ? "bg-white/40 border-slate-100 text-slate-600" 
-                            : "bg-blue-50/20 border-blue-100 text-slate-800 shadow-sm"
+                  {/* Contract Sub-tabs */}
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-100/80 p-1 rounded-2xl">
+                    {[
+                      { id: "my-contract", label: "Hợp đồng của tôi" },
+                      { id: "relatives-contract", label: "Hợp đồng người thân" }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setContractSubTab(tab.id as any)}
+                        className={`py-2 rounded-xl text-[10px] font-bold text-center cursor-pointer transition-all ${
+                          contractSubTab === tab.id
+                            ? "bg-white text-slate-800 shadow-sm"
+                            : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
-                        {!notif.read && (
-                          <div className="absolute top-3.5 left-2 w-2 h-2 bg-blue-500 rounded-full" />
-                        )}
-                        <div className="space-y-1 pl-2">
-                          <h4 className="text-xs font-bold leading-snug font-display pr-4">
-                            {notif.title}
-                          </h4>
-                          <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                            {notif.content}
-                          </p>
-                          <span className="block text-[8px] text-slate-400 font-semibold">{notif.date}</span>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {contractSubTab === "my-contract" ? (
+                    <div className="space-y-4">
+                      {/* Detailed Personal Contract Card */}
+                      <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-3xl p-5 shadow-lg border border-slate-800 relative overflow-hidden">
+                        <div className="absolute right-0 bottom-0 opacity-10 translate-y-1/4 translate-x-1/4">
+                          <Shield size={220} className="stroke-[1.5]" />
+                        </div>
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-blue-300">HỢP ĐỒNG CHÍNH</span>
+                            <h3 className="font-display font-black text-sm uppercase">PTI Care Sức khỏe Vàng</h3>
+                            <p className="text-[10px] font-mono font-bold text-slate-400">Số HĐ: PTI-CON-9912</p>
+                          </div>
+                          <span className="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                            Đang hiệu lực
+                          </span>
+                        </div>
+
+                        <div className="h-px bg-slate-800/80 my-4" />
+
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-[10px]">
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Ngày bắt đầu:</span>
+                            <span className="font-bold">01/01/2026</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Ngày kết thúc:</span>
+                            <span className="font-bold">31/12/2026</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Tổng phí bảo hiểm:</span>
+                            <span className="font-extrabold text-blue-300">12,500,000đ</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Phí còn lại cần đóng:</span>
+                            <span className="font-extrabold text-emerald-400">0đ</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Trạng thái đơn:</span>
+                            <span className="font-bold text-emerald-400">Đã phát hành</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block">Trạng thái thanh toán:</span>
+                            <span className="font-bold text-emerald-400">Đã thanh toán 100%</span>
+                          </div>
                         </div>
                       </div>
-                    ))}
+
+                      {/* Benefit limits checker inside contracts */}
+                      <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">HẠN MỨC QUYỀN LỢI CHI TIẾT</span>
+                        
+                        <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+                          {[
+                            { id: "naitru", label: "Nội trú" },
+                            { id: "ngoaitru", label: "Ngoại trú" },
+                            { id: "nhakhoa", label: "Nha khoa" }
+                          ].map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => setBenefitTab(t.id as any)}
+                              className={`py-1.5 rounded-lg text-[9px] font-bold text-center cursor-pointer transition-all ${
+                                benefitTab === t.id
+                                  ? "bg-white text-blue-600 shadow-sm"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Benefit Details */}
+                        <div className="space-y-3 pt-1">
+                          {benefitTab === "naitru" && (
+                            <div className="space-y-3">
+                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Điều trị nội trú do bệnh tật / tai nạn tại hệ thống bệnh viện bảo lãnh liên kết</p>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div className="bg-blue-600 h-full rounded-full" style={{ width: "5%" }} />
+                              </div>
+                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                                <span>Đã dùng: 12,500,000đ (5%)</span>
+                                <span>Còn lại: 237,500,000đ</span>
+                              </div>
+                            </div>
+                          )}
+                          {benefitTab === "ngoaitru" && (
+                            <div className="space-y-3">
+                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Khám bệnh ngoại trú, kê đơn thuốc Tây y tại phòng khám hoặc bệnh viện</p>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div className="bg-amber-500 h-full rounded-full" style={{ width: "16%" }} />
+                              </div>
+                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                                <span>Đã dùng: 2,400,000đ (16%)</span>
+                                <span>Còn lại: 12,600,000đ</span>
+                              </div>
+                            </div>
+                          )}
+                          {benefitTab === "nhakhoa" && (
+                            <div className="space-y-3">
+                              <p className="text-[10px] text-slate-500 font-semibold leading-normal">Chăm sóc nha khoa tổng quát, cạo vôi răng, trám răng sâu, nhổ răng bệnh lý</p>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div className="bg-emerald-500 h-full rounded-full" style={{ width: "0%" }} />
+                              </div>
+                              <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                                <span>Đã dùng: 0đ (0%)</span>
+                                <span>Còn lại: 5,000,000đ</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      {/* Family members contracts */}
+                      <div className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden">
+                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-amber-500" />
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[8px] font-extrabold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
+                              Mẹ ruột
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-800 font-display mt-2">Nguyễn Thị Lan</h4>
+                            <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: PTI-FAM-3321</p>
+                          </div>
+                          <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
+                            Đang hiệu lực
+                          </span>
+                        </div>
+                        <div className="h-px bg-slate-50 my-2" />
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                          <div>
+                            <span>Tổng phí:</span> <span className="font-bold text-slate-700">6,500,000đ</span>
+                          </div>
+                          <div>
+                            <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">0đ</span>
+                          </div>
+                          <div>
+                            <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">Đã đóng 100%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden">
+                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-blue-500" />
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[8px] font-extrabold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
+                              Con trai
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-800 font-display mt-2">Trần Hoàng Nam</h4>
+                            <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: PTI-FAM-3322</p>
+                          </div>
+                          <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
+                            Đang hiệu lực
+                          </span>
+                        </div>
+                        <div className="h-px bg-slate-50 my-2" />
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                          <div>
+                            <span>Tổng phí:</span> <span className="font-bold text-slate-700">4,500,000đ</span>
+                          </div>
+                          <div>
+                            <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">0đ</span>
+                          </div>
+                          <div>
+                            <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">Đã đóng 100%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* TAB: TÀI KHOẢN (ACCOUNT) */}
+              {activeTab === "account" && (
+                <motion.div
+                  key="account-tab"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex-grow flex flex-col overflow-y-auto px-5 pt-4 pb-6 space-y-5"
+                >
+                  {/* Premium Profile Card */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm flex items-center gap-3.5 relative overflow-hidden">
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-transparent rounded-full opacity-40 blur-lg" />
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center text-white font-display font-extrabold text-base shadow-md shadow-blue-500/10">
+                      AN
+                    </div>
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-bold text-slate-800 leading-tight">{user.name}</h3>
+                      <p className="text-[9px] font-mono font-bold text-slate-400">Hội viên Vàng PTI • CCCD: {user.cccd}</p>
+                      <span className="text-[8px] font-extrabold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full inline-block mt-1">
+                        Khách hàng Cá nhân
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Section: BẢO HIỂM & THANH TOÁN */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">BẢO HIỂM & THANH TOÁN</span>
+                    <div className="bg-white border border-slate-100/80 rounded-2xl divide-y divide-slate-50 overflow-hidden shadow-sm">
+                      <button
+                        onClick={() => setCurrentQuickAction("profile")}
+                        className="w-full px-4 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600">
+                            <UserIcon size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">Điều chỉnh thông tin cá nhân</span>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-400" />
+                      </button>
+
+                      <button
+                        onClick={() => setCurrentQuickAction("payment")}
+                        className="w-full px-4 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-600">
+                            <CreditCard size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">Đóng phí bảo hiểm trực tuyến</span>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-400" />
+                      </button>
+
+                      <button
+                        onClick={() => alert("Chức năng Quản lý người phụ thuộc đang tải...")}
+                        className="w-full px-4 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-xl bg-amber-50 text-amber-600">
+                            <Users size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">Người phụ thuộc hợp đồng</span>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Section: CÀI ĐẶT */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">CÀI ĐẶT</span>
+                    <div className="bg-white border border-slate-100/80 rounded-2xl divide-y divide-slate-50 overflow-hidden shadow-sm">
+                      <button
+                        onClick={() => alert("Tính năng Bảo mật & Đăng nhập sinh trắc học đang bật.")}
+                        className="w-full px-4 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600">
+                            <Lock size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">Bảo mật và đăng nhập</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] text-emerald-600 font-extrabold bg-emerald-50 px-1.5 py-0.5 rounded-md">Khóa vân tay</span>
+                          <ChevronRight size={14} className="text-slate-400" />
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => alert("Ứng dụng hỗ trợ Tiếng Việt làm mặc định.")}
+                        className="w-full px-4 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600">
+                            <Globe size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">Ngôn ngữ ứng dụng</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-slate-400 font-bold">Tiếng Việt (VN)</span>
+                          <ChevronRight size={14} className="text-slate-400" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Section: ĐĂNG XUẤT */}
+                  <div className="pt-2">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full py-4 bg-red-50 hover:bg-red-100/60 text-red-600 hover:text-red-700 border border-red-100 font-bold text-xs rounded-2xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                    >
+                      <LogOut size={14} /> Đăng xuất tài khoản
+                    </button>
                   </div>
                 </motion.div>
               )}
@@ -1322,20 +1470,15 @@ export default function App() {
             {(user.isCorporate ? [
               { id: "home", label: "Cổng HR", icon: Home },
               { id: "roster", label: "Nhân sự", icon: Users },
-              { id: "news", label: "Hợp đồng BH", icon: FileText },
+              { id: "contracts", label: "Hợp đồng BH", icon: Shield },
               { id: "chat", label: "Hỗ trợ AI", icon: MessageSquare, highlight: true }
             ] : [
               { id: "home", label: "Trang chủ", icon: Home },
+              { id: "claims", label: "Bồi thường", icon: FileText },
+              { id: "contracts", label: "Hợp đồng BH", icon: Shield },
               { id: "account", label: "Tài khoản", icon: UserIcon },
-              { id: "news", label: "Lịch sử BH", icon: FileText },
-              { 
-                id: "notif", 
-                label: "Thông báo", 
-                icon: Bell, 
-                badge: unreadCount > 0 ? unreadCount : undefined 
-              },
-              { id: "chat", label: "Chat với AI", icon: MessageSquare, highlight: true }
-            ]).map((tab) => {
+              { id: "chat", label: "Trợ lý AI", icon: MessageSquare, highlight: true }
+            ]).map((tab: any) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               
@@ -1405,6 +1548,87 @@ export default function App() {
                   <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     {selectedNews.content}
                   </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ==========================================
+                SUB-VIEWS DETAILS: NOTIFICATIONS DRAWER SHEET
+            ========================================== */}
+            {showNotificationsSheet && (
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                className="absolute inset-x-0 bottom-0 top-11 bg-white rounded-t-[36px] border-t border-slate-100/50 shadow-[0_-15px_40px_rgba(0,0,0,0.1)] z-40 flex flex-col overflow-hidden"
+              >
+                <div className="h-6 w-full flex justify-center items-center shrink-0">
+                  <div className="w-12 h-1 bg-slate-200 rounded-full" />
+                </div>
+
+                <div className="px-5 pb-3 flex justify-between items-center border-b border-slate-50 shrink-0">
+                  <div>
+                    <h3 className="font-display font-extrabold text-sm text-slate-800">Thông báo của bạn</h3>
+                    <p className="text-[9px] text-slate-400 font-medium">Hộp thư và cập nhật trạng thái hồ sơ bồi thường</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}
+                        className="text-[9px] text-blue-600 font-bold hover:underline cursor-pointer"
+                      >
+                        Đọc tất cả
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowNotificationsSheet(false)}
+                      className="p-1.5 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-grow overflow-y-auto p-5 space-y-3">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-12 space-y-2">
+                      <p className="text-xs text-slate-400 font-medium">Bạn chưa có thông báo nào.</p>
+                    </div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        onClick={() => {
+                          setNotifications(notifications.map(n => n.id === notif.id ? { ...n, read: true } : n));
+                          if (notif.claimId) {
+                            const found = claims.find(c => c.id === notif.claimId);
+                            if (found) {
+                              setSelectedClaim(found);
+                              setShowNotificationsSheet(false);
+                            }
+                          }
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                          notif.read
+                            ? "bg-white/40 border-slate-100 text-slate-600"
+                            : "bg-blue-50/20 border-blue-100 text-slate-800 shadow-sm"
+                        }`}
+                      >
+                        {!notif.read && (
+                          <div className="absolute top-4 left-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                        )}
+                        <div className="space-y-1 pl-3">
+                          <h4 className="text-xs font-bold leading-snug font-display pr-4 text-slate-800">
+                            {notif.title}
+                          </h4>
+                          <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                            {notif.content}
+                          </p>
+                          <span className="block text-[8px] text-slate-400 font-semibold">{notif.date}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </motion.div>
             )}
