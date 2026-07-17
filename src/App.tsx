@@ -167,23 +167,9 @@ export default function App() {
     localStorage.setItem("pti_bank_accounts_v1", JSON.stringify(updatedAccounts));
   };
 
-  // POST-SUBMIT VERIFICATION STATES
-  const [verifyingClaim, setVerifyingClaim] = useState<ClaimRequest | null>(null);
-  const [verificationStage, setVerificationStage] = useState<"face" | "otp" | "success" | null>(null);
-  const [otpVerifyCode, setOtpVerifyCode] = useState(["", "", "", "", "", ""]);
-  const [isVerifyingState, setIsVerifyingState] = useState(false);
   const [benefitTab, setBenefitTab] = useState<"naitru" | "ngoaitru" | "nhakhoa" | "thaisan">("naitru");
   const [contractSubTab, setContractSubTab] = useState<"my-contract" | "relatives-contract">("my-contract");
   const [selectedContractDetail, setSelectedContractDetail] = useState<any | null>(null);
-
-  useEffect(() => {
-    if (verificationStage === "face" && isVerifyingState) {
-      const timer = setTimeout(() => {
-        setVerificationStage("success");
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [verificationStage, isVerifyingState]);
 
   // Load claims from local storage or set defaults
   useEffect(() => {
@@ -382,10 +368,6 @@ export default function App() {
                   }}
                   onSubmitSuccess={(newClaim) => {
                     handleAddNewClaim(newClaim);
-                    setVerifyingClaim(newClaim);
-                    setVerificationStage("face");
-                    setIsVerifyingState(true);
-                    setOtpVerifyCode(["", "", "", "", "", ""]);
                     setCurrentWizard(false);
                     setCorporateEmployeeSelectedForWizard(null);
                     setDraftClaimForWizard(null);
@@ -425,161 +407,7 @@ export default function App() {
               />
             )}
 
-            {verificationStage && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-5 text-white"
-              >
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  className="w-full max-w-[290px] bg-slate-900/90 border border-white/15 rounded-[32px] p-6 text-center space-y-5 shadow-2xl relative overflow-hidden"
-                >
-                  {/* Subtle ambient light source */}
-                  <div className="absolute -right-12 -top-12 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
 
-                  {verificationStage === "face" && (
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase font-mono">PTI SECURE SIGN</span>
-                        <h3 className="text-sm font-black text-white uppercase tracking-tight mt-0.5">XÁC THỰC KHUÔN MẶT</h3>
-                        <p className="text-[10px] text-white/50 font-medium">Bảo mật sinh trắc học Face ID</p>
-                      </div>
-
-                      {/* Animated FaceID scanning frame */}
-                      <div className="relative w-24 h-24 mx-auto rounded-3xl border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shadow-inner">
-                        <motion.div 
-                          className="absolute left-0 w-full h-0.5 bg-blue-400 shadow-md shadow-blue-400/80"
-                          animate={{ top: ["5%", "95%", "5%"] }}
-                          transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                        />
-                        <Fingerprint size={48} className="text-blue-400 animate-pulse" />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-bold text-white tracking-tight flex items-center justify-center gap-1.5">
-                          <RefreshCw size={12} className="animate-spin text-blue-400" />
-                          Đang quét khuôn mặt...
-                        </p>
-                        <p className="text-[9px] text-white/45 max-w-[220px] mx-auto leading-relaxed">
-                          Hệ thống đang đối khớp khuôn mặt với cơ sở dữ liệu quốc gia dân cư để ký số chứng thư bảo hiểm PTI Care.
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setVerificationStage("otp")}
-                        className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-all"
-                      >
-                        Xác thực bằng mã SMS OTP
-                      </button>
-                    </div>
-                  )}
-
-                  {verificationStage === "otp" && (
-                    <div className="space-y-4 text-left">
-                      <div className="text-center space-y-1">
-                        <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase font-mono">PTI SECURE SIGN</span>
-                        <h4 className="text-sm font-black text-white flex items-center justify-center gap-1.5 uppercase">
-                          <Smartphone size={16} className="text-blue-400" /> NHẬP MÃ XÁC THỰC OTP
-                        </h4>
-                        <p className="text-[9px] text-white/50 font-medium max-w-[210px] mx-auto">
-                          Mã xác thực bảo mật OTP đã được gửi về số điện thoại đăng ký của bạn (090***888).
-                        </p>
-                      </div>
-
-                      <div className="flex justify-center gap-1.5 py-1">
-                        {[0, 1, 2, 3, 4, 5].map((idx) => (
-                          <input
-                            key={idx}
-                            id={`verify-otp-input-${idx}`}
-                            type="text"
-                            maxLength={1}
-                            value={otpVerifyCode[idx] || ""}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, "");
-                              const newOtp = [...otpVerifyCode];
-                              newOtp[idx] = val;
-                              setOtpVerifyCode(newOtp);
-                              
-                              if (val && idx < 5) {
-                                document.getElementById(`verify-otp-input-${idx + 1}`)?.focus();
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Backspace" && !otpVerifyCode[idx] && idx > 0) {
-                                document.getElementById(`verify-otp-input-${idx - 1}`)?.focus();
-                              }
-                            }}
-                            className="w-8 h-10 rounded-xl bg-white/10 border border-white/20 text-center text-white font-bold text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                          />
-                        ))}
-                      </div>
-
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsVerifyingState(false);
-                            setVerificationStage(null);
-                          }}
-                          className="flex-1 bg-white/5 border border-white/10 text-white/80 py-2 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-white/10 transition-colors"
-                        >
-                          Hủy bỏ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (otpVerifyCode.join("").length < 6) {
-                              alert("Vui lòng nhập đầy đủ 6 chữ số OTP.");
-                              return;
-                            }
-                            setVerificationStage("success");
-                          }}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-colors"
-                        >
-                          Xác nhận
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {verificationStage === "success" && (
-                    <div className="space-y-4 py-2">
-                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/15">
-                        <CheckCircle2 size={36} className="stroke-[2.5] animate-bounce" />
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <p className="text-xs font-black text-emerald-400 uppercase tracking-wider">XÁC THỰC KÝ SỐ THÀNH CÔNG!</p>
-                        <p className="text-[10px] font-bold text-white">Đã nộp hồ sơ bảo hiểm hỏa tốc</p>
-                      </div>
-
-                      <div className="bg-white/5 rounded-2xl p-3 border border-white/10 text-left space-y-1 text-[9px] text-white/70">
-                        <p className="font-semibold text-white">Mã hồ sơ: CLM-{(verifyingClaim?.cardNumber || "PTI").substring(4)}-{new Date().getFullYear()}</p>
-                        <p>Người bảo hiểm: {verifyingClaim?.insuredName}</p>
-                        <p>Cơ sở y tế: {verifyingClaim?.hospital}</p>
-                        <p>Số tiền: <span className="font-mono font-bold text-red-400">{verifyingClaim?.amount.toLocaleString("vi-VN")} VND</span></p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsVerifyingState(false);
-                          setVerificationStage(null);
-                        }}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider cursor-pointer shadow-md transition-colors"
-                      >
-                        Trở về Trang chủ
-                      </button>
-                    </div>
-                  )}
-                </motion.div>
-              </motion.div>
-            )}
           </AnimatePresence>
 
           {/* ==========================================
@@ -1329,17 +1157,14 @@ export default function App() {
                   {contractSubTab === "my-contract" ? (
                     <div className="space-y-3.5">
                       {MY_CONTRACTS.map((contract) => {
-                        let accentColor = "bg-emerald-500";
                         let badgeLabel = "Xe máy";
                         let badgeColor = "bg-emerald-50 text-emerald-600 border border-emerald-100";
                         
                         if (contract.type === "health") {
-                          accentColor = "bg-blue-500";
-                          badgeLabel = "Sức khỏe";
+                          badgeLabel = "Bảo hiểm Sức khỏe";
                           badgeColor = "bg-blue-50 text-blue-600 border border-blue-100";
                         } else if (contract.type === "car") {
-                          accentColor = "bg-amber-500";
-                          badgeLabel = "Ô tô Pro";
+                          badgeLabel = "Bảo hiểm Ô tô Pro";
                           badgeColor = "bg-amber-50 text-amber-600 border border-amber-100";
                         }
                         
@@ -1347,18 +1172,20 @@ export default function App() {
                           <div 
                             key={contract.id}
                             onClick={() => setSelectedContractDetail(contract)}
-                            className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden cursor-pointer text-left"
+                            className="relative rounded-2xl p-4 border border-sky-100/80 bg-white/85 shadow-sm hover:border-blue-400/80 hover:bg-white hover:shadow-md hover:shadow-blue-500/5 transition-all cursor-pointer text-left"
                           >
-                            <div className={`absolute top-0 bottom-0 left-0 w-1 ${accentColor}`} />
                             <div className="flex justify-between items-start">
-                              <div>
-                                <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full ${badgeColor}`}>
+                              <div className="space-y-1">
+                                <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${badgeColor}`}>
                                   {badgeLabel}
                                 </span>
-                                <h4 className="text-xs font-bold text-slate-800 font-display mt-2">
+                                <h4 className="text-xs font-black text-slate-800 tracking-tight pt-1.5 uppercase font-display">
                                   {contract.name}
                                 </h4>
-                                <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: {contract.code}</p>
+                                <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                  👤 Người ĐB: Nguyễn Văn An
+                                </p>
+                                <p className="text-[9px] font-mono text-slate-400">Số hợp đồng: {contract.code} • Phí: {contract.premium}</p>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
@@ -1367,19 +1194,10 @@ export default function App() {
                                 <ChevronRight size={13} className="text-slate-400" />
                               </div>
                             </div>
-                            
-                            <div className="h-px bg-slate-50 my-2" />
-                            
-                            <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                              <div>
-                                <span>Tổng phí:</span> <span className="font-bold text-slate-700">{contract.premium}</span>
-                              </div>
-                              <div>
-                                <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">{contract.remainingPremium}</span>
-                              </div>
-                              <div>
-                                <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">{contract.paymentStatus}</span>
-                              </div>
+
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-[9px] text-slate-400 font-semibold">
+                              <span>Phí còn lại: <strong className="text-emerald-600 font-bold">{contract.remainingPremium}</strong></span>
+                              <span>Thanh toán: <strong className="text-emerald-600 font-bold">{contract.paymentStatus}</strong></span>
                             </div>
                           </div>
                         );
@@ -1388,59 +1206,95 @@ export default function App() {
                   ) : (
                     <div className="space-y-3.5">
                       {/* Family members contracts */}
-                      <div className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden">
-                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-amber-500" />
+                      <div 
+                        onClick={() => setSelectedContractDetail({
+                          id: "contract-fam-1",
+                          name: "PTI Family Care Toàn Diện",
+                          code: "PTI-FAM-3321",
+                          type: "health",
+                          startDate: "01/01/2026",
+                          endDate: "31/12/2026",
+                          premium: "6,500,000đ",
+                          remainingPremium: "0đ",
+                          paymentStatus: "Đã đóng 100%",
+                          issueStatus: "Đã cấp đơn",
+                          status: "Đang hiệu lực",
+                          cardId: "card-4",
+                          benefits: [
+                            { id: 1, category: "Điều trị Nội trú", limit: "150.000.000đ/năm", desc: "Chi phí nằm viện, phẫu thuật", used: "0đ", remaining: "150.000.000đ", percent: 0, color: "bg-blue-500" },
+                            { id: 2, category: "Điều trị Ngoại trú", limit: "10.000.000đ/năm", desc: "Chi phí khám bệnh, tiền thuốc", used: "1.500.000đ", remaining: "8.500.000đ", percent: 15, color: "bg-emerald-500" }
+                          ]
+                        })}
+                        className="relative rounded-2xl p-4 border border-sky-100/80 bg-white/85 shadow-sm hover:border-amber-400/80 hover:bg-white hover:shadow-md hover:shadow-amber-500/5 transition-all cursor-pointer text-left"
+                      >
                         <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[8px] font-extrabold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
+                          <div className="space-y-1">
+                            <span className="text-[8px] font-extrabold uppercase bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
                               Mẹ ruột
                             </span>
-                            <h4 className="text-xs font-bold text-slate-800 font-display mt-2">Nguyễn Thị Lan</h4>
-                            <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: PTI-FAM-3321</p>
+                            <h4 className="text-xs font-black text-slate-800 tracking-tight pt-1.5 uppercase font-display">Nguyễn Thị Lan</h4>
+                            <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                              👤 Người ĐB: Nguyễn Thị Lan
+                            </p>
+                            <p className="text-[9px] font-mono text-slate-400">Số hợp đồng: PTI-FAM-3321 • Phí: 6,500,000đ</p>
                           </div>
-                          <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
-                            Đang hiệu lực
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
+                              Đang hiệu lực
+                            </span>
+                            <ChevronRight size={13} className="text-slate-400" />
+                          </div>
                         </div>
-                        <div className="h-px bg-slate-50 my-2" />
-                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                          <div>
-                            <span>Tổng phí:</span> <span className="font-bold text-slate-700">6,500,000đ</span>
-                          </div>
-                          <div>
-                            <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">0đ</span>
-                          </div>
-                          <div>
-                            <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">Đã đóng 100%</span>
-                          </div>
+
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-[9px] text-slate-400 font-semibold">
+                          <span>Phí còn lại: <strong className="text-emerald-600 font-bold">0đ</strong></span>
+                          <span>Thanh toán: <strong className="text-emerald-600 font-bold">Đã đóng 100%</strong></span>
                         </div>
                       </div>
 
-                      <div className="bg-white border border-slate-100/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 relative overflow-hidden">
-                        <div className="absolute top-0 bottom-0 left-0 w-1 bg-blue-500" />
+                      <div 
+                        onClick={() => setSelectedContractDetail({
+                          id: "contract-fam-2",
+                          name: "PTI Care An Gia",
+                          code: "PTI-FAM-3322",
+                          type: "health",
+                          startDate: "15/01/2026",
+                          endDate: "14/01/2027",
+                          premium: "4,500,000đ",
+                          remainingPremium: "0đ",
+                          paymentStatus: "Đã đóng 100%",
+                          issueStatus: "Đã cấp đơn",
+                          status: "Đang hiệu lực",
+                          cardId: "card-3",
+                          benefits: [
+                            { id: 1, category: "Điều trị Nội trú", limit: "100.000.000đ/năm", desc: "Chi phí nằm viện, phẫu thuật", used: "0đ", remaining: "100.000.000đ", percent: 0, color: "bg-blue-500" },
+                            { id: 2, category: "Điều trị Ngoại trú", limit: "6.000.000đ/năm", desc: "Chi phí khám bệnh, tiền thuốc", used: "0đ", remaining: "6.000.000đ", percent: 0, color: "bg-emerald-500" }
+                          ]
+                        })}
+                        className="relative rounded-2xl p-4 border border-sky-100/80 bg-white/85 shadow-sm hover:border-blue-400/80 hover:bg-white hover:shadow-md hover:shadow-blue-500/5 transition-all cursor-pointer text-left"
+                      >
                         <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-[8px] font-extrabold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
+                          <div className="space-y-1">
+                            <span className="text-[8px] font-extrabold uppercase bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
                               Con trai
                             </span>
-                            <h4 className="text-xs font-bold text-slate-800 font-display mt-2">Trần Hoàng Nam</h4>
-                            <p className="text-[9px] font-mono text-slate-400 mt-0.5">Số HĐ: PTI-FAM-3322</p>
+                            <h4 className="text-xs font-black text-slate-800 tracking-tight pt-1.5 uppercase font-display">Trần Hoàng Nam</h4>
+                            <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                              👤 Người ĐB: Trần Hoàng Nam
+                            </p>
+                            <p className="text-[9px] font-mono text-slate-400">Số hợp đồng: PTI-FAM-3322 • Phí: 4,500,000đ</p>
                           </div>
-                          <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
-                            Đang hiệu lực
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">
+                              Đang hiệu lực
+                            </span>
+                            <ChevronRight size={13} className="text-slate-400" />
+                          </div>
                         </div>
-                        <div className="h-px bg-slate-50 my-2" />
-                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                          <div>
-                            <span>Tổng phí:</span> <span className="font-bold text-slate-700">4,500,000đ</span>
-                          </div>
-                          <div>
-                            <span>Phí còn lại:</span> <span className="font-bold text-emerald-600">0đ</span>
-                          </div>
-                          <div>
-                            <span>Trạng thái thanh toán:</span> <span className="font-bold text-emerald-600">Đã đóng 100%</span>
-                          </div>
+
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-[9px] text-slate-400 font-semibold">
+                          <span>Phí còn lại: <strong className="text-emerald-600 font-bold">0đ</strong></span>
+                          <span>Thanh toán: <strong className="text-emerald-600 font-bold">Đã đóng 100%</strong></span>
                         </div>
                       </div>
                     </div>
@@ -2031,58 +1885,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* PTI ADMIN SIMULATOR TOOLBOX - ONLY DISPLAYED FOR EXPERIMENTAL DEMO WORK */}
-                  <div className="mt-6 pt-4 border-t border-dashed border-slate-200 space-y-3">
-                    <div className="flex items-center gap-1 bg-slate-100 px-3 py-1.5 rounded-full inline-block">
-                      <Settings size={12} className="text-slate-500 animate-spin" />
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Trình mô phỏng kiểm duyệt (PTI Admin)</span>
-                    </div>
-                    <p className="text-[9px] leading-relaxed text-slate-400 font-medium">
-                      Nhấp vào một trong các nút dưới đây để giả lập phản hồi của Ban giám định bảo hiểm PTI đối với hồ sơ bồi thường này:
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleSimulateClaimStatus(selectedClaim.id, "ChoDuyet")}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                          selectedClaim.status === "ChoDuyet" ? "bg-amber-100 border-amber-300 text-amber-800" : "bg-white hover:bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        Đặt về: Chờ Duyệt
-                      </button>
-                      <button
-                        onClick={() => handleSimulateClaimStatus(selectedClaim.id, "YeuCauBoSung")}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                          selectedClaim.status === "YeuCauBoSung" ? "bg-orange-100 border-orange-300 text-orange-800" : "bg-white hover:bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        Báo lỗi: Thiếu giấy tờ
-                      </button>
-                      <button
-                        onClick={() => handleSimulateClaimStatus(selectedClaim.id, "DaDuyet")}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                          selectedClaim.status === "DaDuyet" ? "bg-green-100 border-green-300 text-green-800" : "bg-white hover:bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        Duyệt: Hoàn tất chi trả
-                      </button>
-                      <button
-                        onClick={() => handleSimulateClaimStatus(selectedClaim.id, "TuChoi")}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
-                          selectedClaim.status === "TuChoi" ? "bg-red-100 border-red-300 text-red-800" : "bg-white hover:bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        Từ chối chi trả
-                      </button>
-                      <button
-                        onClick={() => handleSimulateClaimStatus(selectedClaim.id, "Nhap")}
-                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer col-span-2 ${
-                          selectedClaim.status === "Nhap" ? "bg-slate-100 border-slate-300 text-slate-700" : "bg-white hover:bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        Đặt về: Bản nháp (Nháp)
-                      </button>
-                    </div>
-                  </div>
+
 
                 </div>
               </motion.div>

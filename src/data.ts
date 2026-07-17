@@ -13,6 +13,83 @@ export const SAMPLE_CARDS: InsuranceCard[] = [
     relationship: "Bản thân"
   },
   {
+    id: "card-1-tai-nan",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-ACC-110255",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_ACCIDENT",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "31/12/2026",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-nha-khoa",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-DEN-440255",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_DENTAL",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "31/12/2026",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-ung-thu",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-CAN-550255",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_CANCER",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "31/12/2026",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-tro-cap",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-HOS-660255",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_HOSPITAL",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "31/12/2026",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-car",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-CAR-882211",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_CAR",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "14/02/2027",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-moto",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-MOTO-334255",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_MOTO",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "09/03/2027",
+    relationship: "Bản thân"
+  },
+  {
+    id: "card-1-home",
+    name: "NGUYỄN VĂN AN",
+    idCardNumber: "001096012345",
+    cardNumber: "PTI-HOME-774411",
+    qrCode: "PTI_CARD_NGUYEN_VAN_AN_HOME",
+    birthday: "15/10/1996",
+    status: "HieuLuc",
+    expiryDate: "30/06/2027",
+    relationship: "Bản thân"
+  },
+  {
     id: "card-2",
     name: "NGUYỄN MINH KHANG",
     idCardNumber: "001202009876",
