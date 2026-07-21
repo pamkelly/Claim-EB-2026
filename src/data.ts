@@ -276,5 +276,32 @@ export const MOCK_HISTORIC_CLAIMS: ClaimRequest[] = [
     paymentDocs: [],
     status: "Nhap",
     date: "06/07/2026 18:00"
+  },
+  {
+    id: "mock-claim-5",
+    cardId: "card-1",
+    insuredName: "NGUYỄN VĂN AN",
+    cardNumber: "PTI-VIP-998877",
+    hospital: "Bệnh viện Quốc tế Vinmec",
+    treatmentType: "NgoaiTru",
+    cause: "Điều trị viêm dạ dày cấp & xét nghiệm HP",
+    amount: 4500000,
+    approvedAmount: 2800000,
+    hasOtherInsurance: false,
+    receiveMethod: "ChuyenKhoan",
+    bankName: "Vietcombank (VCB)",
+    bankAccount: "101889922233",
+    bankOwner: "NGUYEN VAN AN",
+    email: "htthien20101996@gmail.com",
+    medicalDocs: [
+      { name: "PhieuKham_Vinmec.pdf", size: "1.4 MB", type: "application/pdf" },
+      { name: "KetQuaXetNghiem_HP.pdf", size: "950 KB", type: "application/pdf" }
+    ],
+    paymentDocs: [
+      { name: "HoaDonVinmec_1.jpg", size: "720 KB", type: "image/jpeg" }
+    ],
+    status: "ChiTraMotPhan",
+    supplementNotes: "Một số loại thuốc bổ trợ sức khỏe nằm ngoài danh mục thanh toán bảo lãnh theo Điều 5.3 của hợp đồng bảo hiểm.",
+    date: "15/07/2026 10:30"
   }
 ];

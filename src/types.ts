@@ -1,5 +1,5 @@
 export type TreatmentType = "NoiTru" | "NgoaiTru" | "NhaKhoa" | "PhauThuat";
-export type ClaimStatus = "ChoDuyet" | "YeuCauBoSung" | "DaDuyet" | "TuChoi" | "Nhap";
+export type ClaimStatus = "ChoDuyet" | "YeuCauBoSung" | "DaDuyet" | "TuChoi" | "Nhap" | "ChiTraMotPhan";
 export type ReceiveMethod = "ChuyenKhoan" | "TienMat";
 
 export interface InsuranceCard {
@@ -34,6 +34,7 @@ export interface ClaimRequest {
   status: ClaimStatus;
   date: string;
   supplementNotes?: string;
+  approvedAmount?: number;
 }
 
 export interface NotificationItem {

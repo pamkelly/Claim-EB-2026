@@ -904,26 +904,18 @@ export default function App() {
                       <h2 className="text-base font-display font-bold text-slate-800 uppercase tracking-tight">Hồ sơ bồi thường</h2>
                       <p className="text-[10px] text-slate-400 font-medium">Quản lý và theo dõi tiến độ chi trả của bạn</p>
                     </div>
-                    <button
-                      onClick={() => {
-                        setDraftClaimForWizard(null);
-                        setCurrentWizard(true);
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-2 rounded-xl transition-all shadow-sm shadow-blue-500/10 flex items-center gap-1 active:scale-95 cursor-pointer"
-                    >
-                      <Plus size={12} className="stroke-[2.5]" /> Tạo yêu cầu
-                    </button>
                   </div>
 
                   {/* Filter Pills for Claims Tab */}
                   <div className="flex gap-1.5 overflow-x-auto pt-2 pb-3.5 scrollbar-none -mx-5 px-5 -mt-2 -mb-2 shrink-0">
-                    {(["Tất cả", "Bổ sung chứng từ", "Chờ duyệt", "Bị từ chối", "Nháp", "Đã hoàn tất"] as const).map((filter) => {
+                    {(["Tất cả", "Chờ duyệt", "Bổ sung chứng từ", "Chi trả một phần", "Bị từ chối", "Nháp", "Đã hoàn tất"] as const).map((filter) => {
                       const isSelected = claimsTabFilter === filter;
                       const count = claims.filter(c => {
                         if (filter === "Tất cả") return true;
                         if (filter === "Nháp") return c.status === "Nhap";
                         if (filter === "Chờ duyệt") return c.status === "ChoDuyet";
                         if (filter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
+                        if (filter === "Chi trả một phần") return c.status === "ChiTraMotPhan";
                         if (filter === "Đã hoàn tất") return c.status === "DaDuyet";
                         if (filter === "Bị từ chối") return c.status === "TuChoi";
                         return false;
@@ -958,6 +950,7 @@ export default function App() {
                         if (claimsTabFilter === "Nháp") return c.status === "Nhap";
                         if (claimsTabFilter === "Chờ duyệt") return c.status === "ChoDuyet";
                         if (claimsTabFilter === "Bổ sung chứng từ") return c.status === "YeuCauBoSung";
+                        if (claimsTabFilter === "Chi trả một phần") return c.status === "ChiTraMotPhan";
                         if (claimsTabFilter === "Đã hoàn tất") return c.status === "DaDuyet";
                         if (claimsTabFilter === "Bị từ chối") return c.status === "TuChoi";
                         return false;
@@ -983,6 +976,9 @@ export default function App() {
                         } else if (claim.status === "DaDuyet") {
                           statusColor = "bg-green-50 text-green-600 border-green-100";
                           statusText = "Đã hoàn tất";
+                        } else if (claim.status === "ChiTraMotPhan") {
+                          statusColor = "bg-indigo-50 text-indigo-600 border-indigo-100";
+                          statusText = "Chi trả 1 phần";
                         } else if (claim.status === "TuChoi") {
                           statusColor = "bg-red-50 text-red-600 border-red-100";
                           statusText = "Từ chối";
@@ -1034,9 +1030,20 @@ export default function App() {
 
                               <div className="text-right flex flex-col justify-between items-end">
                                 <div>
-                                  <p className="text-xs font-extrabold text-blue-600">
-                                    {claim.amount ? claim.amount.toLocaleString("vi-VN") : "0"}đ
-                                  </p>
+                                  {claim.status === "ChiTraMotPhan" && claim.approvedAmount ? (
+                                    <>
+                                      <p className="text-xs font-extrabold text-indigo-600">
+                                        Duyệt: {claim.approvedAmount.toLocaleString("vi-VN")}đ
+                                      </p>
+                                      <p className="text-[9px] text-slate-400 line-through">
+                                        YC: {claim.amount.toLocaleString("vi-VN")}đ
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <p className="text-xs font-extrabold text-blue-600">
+                                      {claim.amount ? claim.amount.toLocaleString("vi-VN") : "0"}đ
+                                    </p>
+                                  )}
                                   <p className="text-[9px] text-slate-400 mt-1 font-medium">{claim.date.split(" ")[0]}</p>
                                 </div>
                               </div>
@@ -1062,6 +1069,71 @@ export default function App() {
                                 >
                                   📎 Bổ sung chứng từ
                                 </button>
+                              )}
+                              {claim.status === "ChiTraMotPhan" && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const updatedClaims = claims.map(c => {
+                                        if (c.id === claim.id) {
+                                          return {
+                                            ...c,
+                                            status: "DaDuyet" as const,
+                                            amount: claim.approvedAmount || claim.amount,
+                                            date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                          };
+                                        }
+                                        return c;
+                                      });
+                                      setClaims(updatedClaims);
+                                      localStorage.setItem("pti_claims_v1", JSON.stringify(updatedClaims));
+                                      
+                                      const newNotif = {
+                                        id: `notif-${Math.random()}`,
+                                        title: "Đồng ý phán quyết chi trả hỏa tốc",
+                                        content: `Bạn đã đồng ý phán quyết chi trả một phần ${claim.approvedAmount?.toLocaleString("vi-VN")}đ cho hồ sơ #${claim.id}.`,
+                                        date: "Hôm nay",
+                                        read: false,
+                                        claimId: claim.id
+                                      };
+                                      setNotifications([newNotif, ...notifications]);
+                                      alert("Cảm ơn bạn đã đồng ý phán quyết! Số tiền duyệt chi trả đang được chuyển khoản hỏa tốc tới tài khoản của bạn.");
+                                    }}
+                                    className="px-2.5 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    ✅ Đồng ý
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const updatedClaims = claims.map(c => {
+                                        if (c.id === claim.id) {
+                                          return {
+                                            ...c,
+                                            status: "ChoDuyet" as const,
+                                            date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                          };
+                                        }
+                                        return c;
+                                      });
+                                      setClaims(updatedClaims);
+                                      localStorage.setItem("pti_claims_v1", JSON.stringify(updatedClaims));
+                                      
+                                      const newNotif = {
+                                        id: `notif-${Math.random()}`,
+                                        title: "Đã gửi khiếu nại thành công",
+                                        content: `Hồ sơ #${claim.id} của bạn đã được gửi lại ban giám định PTI để tái thẩm định hỏa tốc.`,
+                                        date: "Hôm nay",
+                                        read: false,
+                                        claimId: claim.id
+                                      };
+                                      setNotifications([newNotif, ...notifications]);
+                                      alert("Đã gửi đơn khiếu nại thành công! Ban giám định PTI đang tiến hành tái thẩm định hồ sơ của bạn.");
+                                    }}
+                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    ⚖️ Khiếu nại
+                                  </button>
+                                </>
                               )}
                               {claim.status === "TuChoi" && (
                                 <>
@@ -1640,12 +1712,14 @@ export default function App() {
                         selectedClaim.status === "ChoDuyet" ? "bg-amber-100 text-amber-700 font-bold" :
                         selectedClaim.status === "YeuCauBoSung" ? "bg-orange-100 text-orange-700 font-bold animate-pulse" :
                         selectedClaim.status === "DaDuyet" ? "bg-green-100 text-green-700 font-bold" :
+                        selectedClaim.status === "ChiTraMotPhan" ? "bg-indigo-100 text-indigo-700 font-bold" :
                         selectedClaim.status === "Nhap" ? "bg-slate-100 text-slate-700 font-bold" :
                         "bg-red-100 text-red-700 font-bold"
                       }`}>
                         {selectedClaim.status === "ChoDuyet" ? "Chờ duyệt" :
                          selectedClaim.status === "YeuCauBoSung" ? "Yêu cầu bổ sung" :
                          selectedClaim.status === "DaDuyet" ? "Đã chi trả" : 
+                         selectedClaim.status === "ChiTraMotPhan" ? "Chi trả 1 phần" :
                          selectedClaim.status === "Nhap" ? "Bản nháp" : "Từ chối"}
                       </span>
                     </div>
@@ -1818,6 +1892,112 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Partial payout visual with Accept / Appeal actions */}
+                  {selectedClaim.status === "ChiTraMotPhan" && (
+                    <div className="bg-indigo-50 border border-indigo-200/50 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center shrink-0">
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div className="space-y-1 text-left">
+                          <h4 className="text-xs font-bold text-indigo-700">DUYỆT CHI TRẢ MỘT PHẦN</h4>
+                          <p className="text-[10px] leading-relaxed text-indigo-800 font-medium">
+                            Ban giám định duyệt chi trả số tiền: <span className="font-extrabold text-indigo-600 text-[11px]">{selectedClaim.approvedAmount?.toLocaleString("vi-VN")}đ</span> (trong tổng số {selectedClaim.amount.toLocaleString("vi-VN")}đ yêu cầu).
+                          </p>
+                          {selectedClaim.supplementNotes && (
+                            <p className="text-[10px] leading-relaxed text-indigo-700 font-medium italic mt-1">
+                              Lý do: {selectedClaim.supplementNotes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-indigo-100 space-y-2.5">
+                        <p className="text-[9px] leading-relaxed text-indigo-700 font-medium">
+                          Bạn có quyền đồng ý với phán quyết chi trả này để nhận tiền hỏa tốc ngay lập tức, hoặc gửi đơn khiếu nại (yêu cầu tái thẩm định lại hồ sơ).
+                        </p>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const updatedClaims = claims.map(c => {
+                                if (c.id === selectedClaim.id) {
+                                  return {
+                                    ...c,
+                                    status: "DaDuyet" as const,
+                                    amount: selectedClaim.approvedAmount || selectedClaim.amount,
+                                    date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                  };
+                                }
+                                return c;
+                              });
+                              setClaims(updatedClaims);
+                              localStorage.setItem("pti_claims_v1", JSON.stringify(updatedClaims));
+                              
+                              setSelectedClaim({
+                                ...selectedClaim,
+                                status: "DaDuyet",
+                                amount: selectedClaim.approvedAmount || selectedClaim.amount,
+                                date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                              });
+
+                              const newNotif = {
+                                id: `notif-${Math.random()}`,
+                                title: "Đồng ý phán quyết chi trả hỏa tốc",
+                                content: `Bạn đã đồng ý phán quyết chi trả một phần ${selectedClaim.approvedAmount?.toLocaleString("vi-VN")}đ cho hồ sơ #${selectedClaim.id}.`,
+                                date: "Hôm nay",
+                                read: false,
+                                claimId: selectedClaim.id
+                              };
+                              setNotifications([newNotif, ...notifications]);
+                              alert("Cảm ơn bạn đã đồng ý phán quyết! Số tiền duyệt chi trả đang được chuyển khoản hỏa tốc tới tài khoản của bạn.");
+                            }}
+                            className="flex-grow bg-green-600 hover:bg-green-700 active:scale-95 text-white py-2 rounded-xl text-[10px] font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            ✅ Đồng ý phán quyết
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const updatedClaims = claims.map(c => {
+                                if (c.id === selectedClaim.id) {
+                                  return {
+                                    ...c,
+                                    status: "ChoDuyet" as const,
+                                    date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                                  };
+                                }
+                                return c;
+                              });
+                              setClaims(updatedClaims);
+                              localStorage.setItem("pti_claims_v1", JSON.stringify(updatedClaims));
+                              
+                              setSelectedClaim({
+                                ...selectedClaim,
+                                status: "ChoDuyet",
+                                date: new Date().toLocaleDateString("vi-VN") + " " + new Date().toLocaleTimeString("vi-VN", {hour: '2-digit', minute:'2-digit'})
+                              });
+
+                              const newNotif = {
+                                id: `notif-${Math.random()}`,
+                                title: "Đã gửi khiếu nại thành công",
+                                content: `Hồ sơ #${selectedClaim.id} của bạn đã được gửi lại ban giám định PTI để tái thẩm định hỏa tốc.`,
+                                date: "Hôm nay",
+                                read: false,
+                                claimId: selectedClaim.id
+                              };
+                              setNotifications([newNotif, ...notifications]);
+                              alert("Đã gửi đơn khiếu nại thành công! Ban giám định PTI đang tiến hành tái thẩm định hồ sơ của bạn.");
+                            }}
+                            className="flex-grow bg-blue-600 hover:bg-blue-700 active:scale-95 text-white py-2 rounded-xl text-[10px] font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            ⚖️ Gửi đơn Khiếu nại
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Core details list */}
                   <div className="space-y-3.5 text-xs">
                     <div className="flex justify-between border-b border-slate-50 pb-2">
@@ -1845,6 +2025,14 @@ export default function App() {
                         {selectedClaim.amount.toLocaleString("vi-VN")} VNĐ
                       </span>
                     </div>
+                    {selectedClaim.status === "ChiTraMotPhan" && selectedClaim.approvedAmount && (
+                      <div className="flex justify-between border-b border-slate-50 pb-2">
+                        <span className="text-indigo-600 font-bold">Số tiền duyệt chi trả:</span>
+                        <span className="font-extrabold text-indigo-600 text-sm">
+                          {selectedClaim.approvedAmount.toLocaleString("vi-VN")} VNĐ
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-b border-slate-50 pb-2">
                       <span className="text-slate-400 font-semibold">Nhận tiền bồi thường qua:</span>
                       <span className="font-bold text-slate-700">
